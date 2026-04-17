@@ -1,0 +1,526 @@
+/* ─── Settings Page (new grid layout) ─── */
+.settings-page {
+  display: flex; flex-direction: column;
+  gap: 12px;
+  overflow-y: auto; flex: 1;
+  padding: 4px;
+}
+
+.settings-grid-top,
+.settings-grid-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Legacy settings-view for Users tab */
+.settings-view {
+  display: flex; flex-direction: column;
+  gap: 16px; max-width: 600px;
+  padding: 8px;
+  overflow-y: auto; flex: 1;
+}
+
+.settings-section {
+  padding: 20px;
+}
+
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,180,200,0.06);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.settings-row:last-child { border-bottom: none; }
+
+.settings-label {
+  font-size: 13px; font-weight: 400;
+}
+
+.settings-desc {
+  font-size: 11px; color: var(--text-muted);
+  font-weight: 300; margin-top: 2px;
+}
+
+.settings-input {
+  /* Flex by default inside its container; max-width caps it at a reasonable
+     size. Overridden to 100% inside .settings-input-group below. */
+  width: 100%;
+  max-width: 280px;
+  min-width: 0;
+  background: rgba(255,107,157,0.06);
+  border: 1px solid rgba(255,150,180,0.15);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px; font-weight: 300;
+  color: var(--text-primary);
+  outline: none;
+  transition: background-color 0.3s cubic-bezier(0.4,0,0.2,1), border-color 0.3s cubic-bezier(0.4,0,0.2,1), color 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+
+.settings-input:focus {
+  border-color: var(--glass-border-hover);
+  box-shadow: 0 0 0 2px rgba(255,107,157,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.settings-input-group {
+  display: flex; gap: 6px; align-items: center;
+}
+
+.settings-input-group .settings-input { flex: 1; }
+
+/* Connected account card */
+.account-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255,107,157,0.06);
+  border: 1px solid rgba(255,180,200,0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.account-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,200,210,0.2), transparent);
+}
+
+.account-card img {
+  width: 32px; height: 32px; border-radius: 8px;
+}
+
+.account-card .account-info {
+  flex: 1;
+}
+
+.account-card .account-name {
+  font-size: 12px; font-weight: 400;
+}
+
+.account-card .account-email {
+  font-size: 10.5px; color: var(--text-muted); font-weight: 300;
+}
+
+.btn-sm {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,150,180,0.15);
+  background: rgba(255,107,157,0.06);
+  color: var(--text-secondary);
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px; font-weight: 400;
+  cursor: pointer;
+  transition: background-color 0.3s cubic-bezier(0.4,0,0.2,1), border-color 0.3s cubic-bezier(0.4,0,0.2,1), color 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+
+.btn-sm:hover {
+  background: rgba(255,107,157,0.15);
+  border-color: rgba(255,150,180,0.2);
+  color: var(--text-primary);
+}
+
+.btn-sm.danger {
+  border-color: rgba(255,120,120,0.4);
+  color: #ff9a9a;
+  font-weight: 500;
+}
+
+.btn-sm.danger:hover {
+  background: rgba(255,80,80,0.2);
+  color: #ffb8b8;
+}
+
+/* Version info */
+.settings-version {
+  text-align: center;
+  padding: 16px;
+  font-size: 11px; color: var(--text-muted);
+  font-weight: 300;
+}
+
+/* ─── Users View ─── */
+.users-view {
+  display: flex; flex-direction: column;
+  gap: 12px;
+  overflow-y: auto; flex: 1;
+  padding: 4px;
+}
+
+.users-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Service items */
+.user-service-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255,107,157,0.04);
+  border: 1px solid rgba(255,180,200,0.06);
+  margin-bottom: 8px;
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
+}
+
+.user-service-item:last-child { margin-bottom: 0; }
+
+.user-service-item:hover {
+  background: rgba(255,107,157,0.08);
+  border-color: rgba(255,150,180,0.12);
+}
+
+.user-service-icon {
+  width: 38px; height: 38px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Stats cards */
+.users-stats-grid {
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.users-stat-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255,107,157,0.04);
+  border: 1px solid rgba(255,180,200,0.06);
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
+}
+
+.users-stat-card:hover {
+  background: rgba(255,107,157,0.08);
+  border-color: rgba(255,150,180,0.12);
+}
+
+.users-stat-icon {
+  width: 42px; height: 42px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ─── Theme Presets ─── */
+.theme-presets {
+  /* flex-wrap with FIXED-WIDTH tiles, NOT auto-fill grid with 1fr.
+     The previous grid (`repeat(auto-fill, minmax(110px, 1fr))`)
+     made tiles visibly jump between THREE sizes as the sidebar's
+     300ms width animation shrunk the container: each `auto-fill`
+     column-count change snapped every tile to a new size, AND the
+     `1fr` fluidly stretched them to fill leftover space inside each
+     step. With flex-wrap + fixed `width: 110px` on .theme-preset-item,
+     tiles never resize — they only rearrange into more or fewer
+     rows as the container width changes. Far less jarring during
+     the sidebar transition. */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  /* contain: layout style paint — the grid's relayout, paint, and
+     style invalidation are isolated from the rest of the settings
+     view. During the sidebar's 300ms width animation, this stops the
+     browser from invalidating layout above this point on every frame.
+     Each thumb is also contained (see .theme-preset-item) so paint
+     work for resizing tiles doesn't ripple either way. */
+  contain: layout style paint;
+}
+
+.theme-preset-item {
+  /* Fixed width — see .theme-presets comment. flex-wrap + fixed width
+     means tiles only rearrange into rows, never stretch. */
+  width: 110px;
+  flex: 0 0 110px;
+  cursor: pointer;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  /* CRITICAL: do NOT use `transition: all` here. The grid uses
+     auto-fill with minmax(110px, 1fr) which recomputes column widths
+     as the sidebar expands/collapses (300ms width transition). With
+     `all`, every grid-driven width change kicks off a fresh 250ms
+     width tween on every tile, the tweens stack up frame-by-frame
+     during the sidebar transition, and the result is the visible
+     "sputter" the user reported. Enumerate exactly the properties
+     we want animated — width is NOT one of them, it should snap
+     instantly to whatever the grid layout decides. */
+  transition: border-color 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
+  text-align: center;
+  /* Tell the browser this item's painting is fully isolated — the
+     thumb's background-image doesn't bleed outside the border box,
+     and changes inside don't invalidate anything outside. Lets the
+     browser skip whole-page paint invalidation when one tile resizes,
+     which is the dominant cost during the sidebar's 300ms width tween. */
+  contain: layout paint style;
+}
+
+.theme-preset-item:hover {
+  border-color: rgba(var(--accent-primary-rgb), 0.3);
+  transform: translateY(-2px);
+}
+
+.theme-preset-item.active {
+  border-color: var(--accent-pink);
+  box-shadow: 0 4px 16px rgba(var(--accent-primary-rgb), 0.3);
+}
+
+.theme-preset-thumb {
+  width: 100%; height: 70px;
+  border-radius: 10px;
+  background-color: rgba(var(--accent-primary-rgb), 0.06);
+  /* Thumbs host an <img> child loaded from an in-memory canvas-
+     downsampled data URL (~220×140) rather than the full-res source
+     PNG. See _getResizedThumb() in settings.js. This removes the
+     dominant perf cost we were hitting:
+       1) Full-res PNGs are 1920×1080+ (30MB decoded bitmap each).
+       2) CSS background-image re-sampled on every paint.
+       3) Lazy-loading + content-visibility were making scroll churn
+          RE-DECODE thumbs on every scroll-up/scroll-down cycle.
+     With a cached small data URL, decoded size is ~120KB total per
+     thumb and browsers happily reuse the cached bitmap across
+     scrolls, sidebar reflows, etc. We intentionally DO NOT set
+     content-visibility or loading=lazy anymore — both were causing
+     re-decode churn. The thumbs are small enough now that eagerly
+     keeping them all rendered is cheaper than the dance. */
+  overflow: hidden;
+  position: relative;
+}
+.theme-preset-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  /* Fade in gently when the lazy-loaded image decode completes —
+     without this you get a blank flash. */
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.theme-preset-thumb img.loaded {
+  opacity: 1;
+}
+
+/* ─── Blur slider (Appearance section) ──────────────────────────────
+   Native <input type="range"> has Chrome's default chrome which looks
+   jarring next to the glass-morphism aesthetic. Reset the track/thumb
+   and redraw in our palette. We use a gradient on the TRACK so the
+   "filled" portion on the left of the thumb reads as accent-colored
+   without requiring JS to compute a mask position. */
+#blur-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+#blur-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-pink), var(--accent-rose));
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 6px rgba(var(--accent-primary-rgb), 0.4);
+  cursor: grab;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+#blur-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 3px 10px rgba(var(--accent-primary-rgb), 0.6);
+}
+#blur-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.05);
+}
+#blur-slider:focus-visible {
+  background: rgba(var(--accent-primary-rgb), 0.15);
+}
+
+.theme-preset-thumb.custom-upload {
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed rgba(var(--accent-muted-rgb), 0.3);
+}
+
+.theme-preset-name {
+  font-family: 'Outfit', sans-serif;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 400;
+  padding: 6px 0 4px;
+  letter-spacing: 0.3px;
+}
+
+/* Delete button on custom theme thumbnails */
+.theme-delete-btn {
+  position: absolute; top: 4px; right: 4px;
+  width: 20px; height: 20px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(0,0,0,0.5);
+  color: #ff9a9a;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  /* Same reasoning as .theme-preset-item — avoid `transition: all`
+     so sidebar-driven width recomputes don't sputter. */
+  transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.theme-preset-item:hover .theme-delete-btn {
+  opacity: 1;
+}
+
+.theme-delete-btn:hover {
+  background: rgba(255,80,80,0.6);
+  color: white;
+}
+
+/* ─── Custom Dropdown (glass-morphism) ─── */
+.custom-dropdown {
+  position: relative;
+  width: 100%;
+  outline: none;
+}
+
+.custom-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(var(--accent-primary-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-muted-rgb), 0.12);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  user-select: none;
+  color: var(--text-primary);
+  font-size: 12.5px;
+}
+
+.custom-dropdown-trigger:hover {
+  background: rgba(var(--accent-primary-rgb), 0.12);
+  border-color: rgba(var(--accent-muted-rgb), 0.2);
+}
+
+.custom-dropdown.open .custom-dropdown-trigger {
+  background: rgba(var(--accent-primary-rgb), 0.14);
+  border-color: rgba(var(--accent-pink-rgb, var(--accent-primary-rgb)), 0.3);
+}
+
+.custom-dropdown-selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.custom-dropdown-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-rose);
+  flex-shrink: 0;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.custom-dropdown-sublabel {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-weight: 300;
+  margin-left: auto;
+  padding-right: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.custom-dropdown-chevron {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.custom-dropdown.open .custom-dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+.custom-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: #14070d;
+  border: 1px solid rgba(var(--accent-muted-rgb), 0.2);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6),
+              0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.custom-dropdown.open .custom-dropdown-menu {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Modifier — open the menu UPWARD instead of downward. Used when the
+   dropdown sits near the bottom of an overflow:hidden container (like
+   the OpenRouter model picker at the bottom of the AI provider card,
+   where opening downward would have the menu clipped by the card's
+   rounded edge). The .glass-card parent has overflow:hidden by design
+   so opening sideways isn't enough — only opening upward stays inside. */
+.custom-dropdown.opens-upward .custom-dropdown-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+  /* Mirror the entry animation so it slides DOWN from the trigger
+     (i.e. starts above-and-tucked-in, ends in place above trigger). */
+  transform: translateY(8px) scale(0.98);
+}
+.custom-dropdown.opens-upward.open .custom-dropdown-menu {
+  transform: translateY(0) scale(1);
+}
+
+.custom-dropdown-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.15s ease;
+}
+
+.custom-dropdown-option:hover {
+  background: rgba(var(--accent-primary-rgb), 0.14);
+}
+
+.custom-dropdown-option.selected {
+  background: rgba(var(--accent-primary-rgb), 0.18);
+}
+
+.custom-dropdown-check {
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.2s ease;
+}
+
+.custom-dropdown-option.selected .custom-dropdown-check {
+  opacity: 1;
+}

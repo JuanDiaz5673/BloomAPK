@@ -1,0 +1,73 @@
+/* ─── AllDash Design Tokens ─── */
+:root {
+  /* Accent Colors (overridden by theme engine) */
+  --accent-pink: #ff6b9d;
+  --accent-rose: #e84393;
+  --accent-blush: #fab1c4;
+  --accent-warm: #fd9a6c;
+
+  /* RGB values for rgba() usage */
+  --accent-primary-rgb: 255, 107, 157;
+  --accent-secondary-rgb: 232, 67, 147;
+  --accent-muted-rgb: 250, 177, 196;
+  --accent-warm-rgb: 253, 154, 108;
+
+  /* Status accents (error / warning / success). Use these instead of
+     hardcoding hex like #ff9a9a or #a8f0be — that way callout colors,
+     broken-link styling, and error toasts pick up custom themes. */
+  --accent-error: #ff8a8a;
+  --accent-error-rgb: 255, 138, 138;
+  --accent-warning: #ffc078;
+  --accent-warning-rgb: 255, 192, 120;
+  --accent-success: #a8f0be;
+  --accent-success-rgb: 168, 240, 190;
+
+  /* Modal / overlay z-index tokens — keep all popups in lockstep so a
+     freshly-added overlay can't accidentally render below an existing one. */
+  --z-modal: 10000;
+  --z-overlay: 100000;
+
+  /* Glass Morphism */
+  --glass-bg: rgba(255, 182, 193, 0.06);
+  --glass-bg-hover: rgba(255, 182, 193, 0.12);
+  --glass-bg-active: rgba(255, 105, 140, 0.14);
+  --glass-border: rgba(255, 200, 210, 0.18);
+  --glass-border-hover: rgba(255, 160, 180, 0.3);
+  --glass-shadow: rgba(180, 60, 100, 0.05);
+  /* Blur radius controls GPU cost — each pixel sampled is roughly
+     proportional to blur^2. 44px was the original "frosted" look but
+     very expensive when 10+ cards are on-screen (home view, settings,
+     notes) and on sidebar-width transitions (retriggers blur every
+     frame). 24px is visually near-identical and significantly cheaper.
+     Bump back up only if a theme needs more defocus of a busy bg. */
+  --glass-blur: 24px;
+  --glass-card-bg: rgba(30, 12, 20, 0.35);
+  --glass-sub-bg: rgba(30, 12, 20, 0.35);
+  --glass-sub-blur: blur(24px) saturate(1.3);
+  --glass-sub-border: rgba(255, 200, 210, 0.18);
+
+  /* Text */
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(255, 235, 240, 0.7);
+  --text-muted: rgba(255, 220, 230, 0.45);
+
+  /* Scrollbar */
+  --scrollbar-color: rgba(255, 107, 157, 0.3);
+  --scrollbar-hover: rgba(255, 107, 157, 0.5);
+
+  /* Sidebar */
+  --sidebar-bg: rgba(120, 20, 60, 0.1);
+  --sidebar-border: rgba(255, 180, 200, 0.15);
+
+  /* Body overlay */
+  --overlay-color: rgba(15, 5, 10, 0.45);
+  --overlay-glow1: rgba(180, 40, 100, 0.08);
+  --overlay-glow2: rgba(255, 107, 157, 0.05);
+  --overlay-glow3: rgba(100, 20, 60, 0.06);
+
+  /* Layout */
+  --card-radius: 20px;
+  --sidebar-width: 82px;
+  --sidebar-expanded: 240px;
+  --sidebar-chat-width: 360px;
+}

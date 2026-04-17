@@ -1,0 +1,1360 @@
+/* ─── Study View ───────────────────────────────────────────────────────
+   Pomodoro timer + flashcard decks + stats. Every color uses CSS vars
+   from variables.css so the Settings theme picker cascades through. If
+   you're tempted to hardcode a hex value in here, reach for
+   rgba(var(--accent-primary-rgb), n) instead — future-you will thank
+   you when the warm-peach theme doesn't suddenly look like Barbie's DreamHouse. */
+
+.study-view {
+  padding: 24px 32px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ── Sub-view back bar ─────────────────────────────────────────────
+   Shared header for the Pomodoro + Flashcards sub-pages. Three slots:
+   left = back button, center = page title, right = optional action
+   (e.g. "+ New deck" on Flashcards). Sub-views render this directly
+   so we can stay inside the .study-view flex container without an
+   extra wrapper that would break gap rhythm. */
+.study-backbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px;
+  margin-bottom: -4px; /* compensate for the .study-view gap */
+}
+
+.study-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* Matches .study-btn / .study-btn-sm + .study-sync-chip — all three
+     buttons in the back-bar share the same rounded-rectangle shape so
+     the bar reads as a unified row instead of a mix of pills + rects. */
+  padding: 6px 12px 6px 10px;
+  border-radius: 10px;
+  /* Darker scrim + accent-tinted border (mirrors .study-sync-chip) so
+     the button stays readable on any wallpaper. The previous near-
+     transparent rgba(255,255,255,0.05) background was almost invisible
+     against busy themes (cherry blossoms / leaves / aurora) — the
+     "Study" label disappeared into the photo. */
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.22);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+.study-back-btn:hover {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(var(--accent-primary-rgb), 0.45);
+  color: var(--text-primary);
+  transform: translateX(-2px);
+}
+.study-back-btn svg {
+  flex-shrink: 0;
+  opacity: 0.95;
+}
+
+.study-backbar-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+.study-backbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* ── Hub: Recent decks card ────────────────────────────────────────
+   Same look as the Flashcards page list but compact (max-height + a
+   subtle "view all" link in the header).  */
+.study-recent-decks {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.study-deck-list-compact {
+  max-height: none;
+  gap: 6px;
+}
+.study-deck-empty-compact {
+  padding: 12px 0 4px;
+  text-align: left;
+}
+
+.study-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.25);
+  color: rgba(var(--accent-primary-rgb), 0.95);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.study-link-btn:hover {
+  background: rgba(var(--accent-primary-rgb), 0.12);
+  border-color: rgba(var(--accent-primary-rgb), 0.5);
+}
+
+/* ── Hub: Big entry tiles ──────────────────────────────────────────
+   Two side-by-side cards that each open a dedicated sub-page. They're
+   <button>s so keyboard nav + Enter just works. The hover lift, accent
+   wash, and arrow nudge tell the user "this goes somewhere". */
+.study-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+@media (max-width: 760px) {
+  .study-tiles { grid-template-columns: 1fr; }
+}
+
+.study-tile {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 18px;
+  padding: 24px 22px;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  /* The .glass-card class provides background, backdrop-filter, base
+     border, and box-shadow — we just override the inner padding +
+     the transition list (we want our own transform tween). NOTE: we
+     intentionally use a <div role="button"> rather than a real <button>
+     because Chromium's UA-rendered button shadow tree breaks
+     backdrop-filter, leaving these tiles unblurred against the bg. */
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+  outline: none;
+}
+.study-tile:focus-visible {
+  /* Keyboard-only focus indicator (mouse clicks won't trigger this). */
+  border-color: rgba(var(--accent-primary-rgb), 0.55);
+  box-shadow:
+    0 0 0 3px rgba(var(--accent-primary-rgb), 0.18),
+    0 8px 32px var(--glass-shadow),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.study-tile::after {
+  /* Soft accent wash that brightens on hover — kept inside the tile
+     so it doesn't apply transform/filter to any ancestor of a child
+     .glass-card (there isn't one here, but the rule exists app-wide). */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg,
+    rgba(var(--accent-primary-rgb), 0.06) 0%,
+    transparent 60%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.study-tile:hover {
+  border-color: rgba(var(--accent-primary-rgb), 0.35);
+  transform: translateY(-3px);
+}
+.study-tile:hover::after { opacity: 1; }
+.study-tile:active { transform: translateY(-1px); }
+
+.study-tile-icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  flex-shrink: 0;
+  /* Drop-shadow on the leaf icon, NOT on any ancestor — keeps
+     backdrop-filter on the parent .glass-card working. */
+  background: linear-gradient(135deg,
+    rgba(var(--accent-primary-rgb), 0.18),
+    rgba(var(--accent-secondary-rgb), 0.12));
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.25);
+  color: rgba(var(--accent-primary-rgb), 0.95);
+  position: relative;
+  z-index: 1;
+}
+.study-tile-icon-cards {
+  background: linear-gradient(135deg,
+    rgba(var(--accent-warm-rgb), 0.16),
+    rgba(var(--accent-primary-rgb), 0.1));
+  border-color: rgba(var(--accent-warm-rgb), 0.3);
+  color: var(--accent-warm);
+}
+
+.study-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  z-index: 1;
+  min-width: 0; /* allow ellipsis on overflow */
+}
+
+.study-tile-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  line-height: 1.1;
+}
+.study-tile-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 300;
+  line-height: 1.45;
+  margin-top: 2px;
+}
+.study-tile-meta {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 6px;
+  font-weight: 500;
+}
+.study-tile-arrow {
+  color: var(--text-muted);
+  transition: color 0.25s ease, transform 0.25s ease;
+  position: relative;
+  z-index: 1;
+}
+.study-tile:hover .study-tile-arrow {
+  color: rgba(var(--accent-primary-rgb), 0.95);
+  transform: translateX(3px);
+}
+
+/* Sync status chip — sits in the Flashcards sub-page back-bar's right
+   slot, next to "+ New deck". Shows "Synced 2 min ago" / "Syncing…" /
+   "Sign in to sync" depending on study-sync.js state. Clicking it
+   triggers an immediate sync (no-op when disabled or already syncing). */
+.study-sync-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* Matches .study-back-btn + .study-btn-sm shape + size — the three
+     back-bar buttons visually read as one row. */
+  padding: 6px 12px 6px 10px;
+  border-radius: 10px;
+  /* More opaque than before (was rgba(255,255,255,0.04)) so the chip
+     stays readable against busy wallpapers like the leaves/ocean/etc.
+     theme backgrounds. Dark base + accent-tinted border keeps it
+     visually harmonized with the rest of the glass UI. */
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.22);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.study-sync-chip:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(var(--accent-primary-rgb), 0.45);
+  color: var(--text-primary);
+}
+.study-sync-chip:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.study-sync-chip-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+/* Idle = subtle accent dot tone. */
+.study-sync-chip.is-idle .study-sync-chip-icon {
+  color: rgba(var(--accent-success-rgb), 0.85);
+}
+
+/* Syncing = spinning icon. The animation is on the leaf SVG only —
+   never on the chip itself or any glass-card ancestor — so the
+   sidebar's blur + neighboring cards' backdrop-filter stay intact. */
+.study-sync-chip.is-syncing .study-sync-chip-icon {
+  animation: studySyncSpin 1.1s linear infinite;
+  color: rgba(var(--accent-primary-rgb), 0.95);
+}
+@keyframes studySyncSpin {
+  to { transform: rotate(360deg); }
+}
+
+.study-sync-chip.is-error {
+  border-color: rgba(var(--accent-warning-rgb), 0.4);
+  color: var(--accent-warning);
+}
+.study-sync-chip.is-error .study-sync-chip-icon {
+  color: var(--accent-warning);
+}
+
+.study-sync-chip.is-disabled {
+  /* Off / not authed — neutral muted appearance, no hover affordance. */
+  opacity: 0.6;
+}
+
+/* Compact "Today's progress" panel shown on the Pomodoro sub-page
+   (mid-session quick reference — slimmer than the hub's Today card). */
+.study-today-compact {
+  padding: 16px 20px;
+}
+.study-today-compact .study-today-stats {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* Flashcards sub-page: deck list takes the whole card, no max-height
+   so users can browse 30+ decks comfortably. */
+.study-decks-full .study-deck-list {
+  max-height: none;
+}
+
+/* ── Pomodoro hero ─────────────────────────────────────────────────── */
+.study-pomodoro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 32px 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.study-pomodoro::before {
+  /* Soft radial glow behind the ring that tints with the accent color
+     so the hero card feels "alive" without needing a filter on an
+     ancestor of .glass-card (which would kill backdrop-filter). This
+     pseudo sits inside the card, not on top of it. */
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(closest-side,
+    rgba(var(--accent-primary-rgb), 0.22) 0%,
+    rgba(var(--accent-primary-rgb), 0.08) 40%,
+    transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.study-pomodoro.is-break::before {
+  background: radial-gradient(closest-side,
+    rgba(var(--accent-success-rgb), 0.22) 0%,
+    rgba(var(--accent-success-rgb), 0.06) 40%,
+    transparent 70%);
+}
+
+.study-pomo-ring-wrap {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  z-index: 1;
+}
+
+.study-pomo-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg); /* start at 12 o'clock */
+}
+
+.study-pomo-ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 10;
+}
+
+.study-pomo-ring-fg {
+  fill: none;
+  stroke: url(#studyRingGrad);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.35s ease-out, stroke 0.4s ease;
+  /* Gentle pulse while running to reinforce the "alive" feeling */
+  filter: drop-shadow(0 0 12px rgba(var(--accent-primary-rgb), 0.45));
+}
+
+.study-pomodoro.is-break .study-pomo-ring-fg {
+  stroke: rgba(var(--accent-success-rgb), 0.85);
+  filter: drop-shadow(0 0 12px rgba(var(--accent-success-rgb), 0.4));
+}
+
+.study-pomo-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.study-pomo-time {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 64px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--text-primary);
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  /* Subtle glow matching the ring */
+  text-shadow: 0 2px 20px rgba(var(--accent-primary-rgb), 0.25);
+}
+
+.study-pomodoro.is-break .study-pomo-time {
+  text-shadow: 0 2px 20px rgba(var(--accent-success-rgb), 0.25);
+}
+
+.study-pomo-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 10px;
+  font-weight: 300;
+}
+
+.study-pomo-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  z-index: 1;
+}
+
+.study-pomo-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 300;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  z-index: 1;
+}
+
+/* ── Generic study buttons ─────────────────────────────────────────── */
+.study-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  font-family: inherit;
+}
+.study-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(var(--accent-primary-rgb), 0.35);
+}
+.study-btn:active { transform: translateY(1px); }
+
+.study-btn-primary {
+  background: linear-gradient(135deg,
+    rgba(var(--accent-primary-rgb), 0.85),
+    rgba(var(--accent-secondary-rgb), 0.8));
+  border-color: rgba(var(--accent-primary-rgb), 0.3);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(var(--accent-primary-rgb), 0.25);
+}
+.study-btn-primary:hover {
+  background: linear-gradient(135deg,
+    rgba(var(--accent-primary-rgb), 1),
+    rgba(var(--accent-secondary-rgb), 0.95));
+  border-color: rgba(var(--accent-primary-rgb), 0.5);
+  box-shadow: 0 6px 20px rgba(var(--accent-primary-rgb), 0.35);
+}
+
+.study-btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  gap: 4px;
+}
+
+.study-icon-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  padding: 0;
+}
+.study-icon-btn:hover {
+  background: rgba(var(--accent-primary-rgb), 0.12);
+  border-color: rgba(var(--accent-primary-rgb), 0.3);
+  color: var(--text-primary);
+}
+.study-icon-btn-danger:hover {
+  background: rgba(var(--accent-error-rgb), 0.15);
+  border-color: rgba(var(--accent-error-rgb), 0.35);
+  color: var(--accent-error);
+}
+
+/* ── Decks + Today grid ───────────────────────────────────────────── */
+.study-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .study-grid { grid-template-columns: 1fr; }
+}
+
+.study-decks,
+.study-today {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.study-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.study-card-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  font-weight: 400;
+  margin: 0;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+
+/* Deck list */
+.study-deck-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.study-deck-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+.study-deck-row:hover {
+  background: rgba(var(--accent-primary-rgb), 0.08);
+  border-color: rgba(var(--accent-primary-rgb), 0.25);
+  transform: translateX(2px);
+}
+/* Keyboard focus ring — matches the hover tint but with a crisp
+   accent outline so Tab-users know exactly where they are. Scoped
+   to :focus-visible so mouse clicks don't leave a lingering ring. */
+.study-deck-row:focus { outline: none; }
+.study-deck-row:focus-visible {
+  background: rgba(var(--accent-primary-rgb), 0.1);
+  border-color: rgba(var(--accent-primary-rgb), 0.55);
+  box-shadow: 0 0 0 2px rgba(var(--accent-primary-rgb), 0.35);
+}
+
+.study-deck-name {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study-deck-counts {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+.study-deck-due {
+  color: var(--accent-warm);
+  font-weight: 500;
+}
+
+.study-deck-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+.study-deck-row:hover .study-deck-actions { opacity: 1; }
+
+.study-deck-skeleton {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.study-deck-empty {
+  padding: 20px 8px;
+  text-align: center;
+}
+.study-deck-empty p {
+  margin: 0 0 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.study-deck-empty-sub {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.study-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 12px;
+}
+.study-hint em {
+  color: rgba(var(--accent-primary-rgb), 0.85);
+  font-style: italic;
+}
+
+/* Today card */
+.study-streak {
+  font-size: 13px;
+  color: var(--accent-warm);
+  font-weight: 500;
+}
+
+.study-today-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.study-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 10px;
+  background: rgba(var(--accent-primary-rgb), 0.06);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.12);
+}
+
+.study-stat-value {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.study-stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+/* Goal bar */
+.study-goal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 4px;
+}
+.study-goal-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.study-goal-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg,
+    rgba(var(--accent-primary-rgb), 0.8),
+    rgba(var(--accent-secondary-rgb), 0.9));
+  border-radius: 3px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 0;
+}
+.study-goal-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+/* 7-day chart */
+.study-chart {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  height: 90px;
+  align-items: end;
+  padding-top: 8px;
+}
+
+.study-chart-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 100%;
+}
+
+.study-chart-bar {
+  width: 100%;
+  background: linear-gradient(180deg,
+    rgba(var(--accent-primary-rgb), 0.85),
+    rgba(var(--accent-primary-rgb), 0.25));
+  border-radius: 4px 4px 2px 2px;
+  min-height: 4px;
+  /* Animate height rather than transform: scaleY — keeping transforms
+     off of .glass-card descendants so backdrop-filter still works. */
+  transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.study-chart-bar.is-empty {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.study-chart-bar.is-today {
+  background: linear-gradient(180deg,
+    rgba(var(--accent-secondary-rgb), 1),
+    rgba(var(--accent-primary-rgb), 0.5));
+  box-shadow: 0 0 10px rgba(var(--accent-primary-rgb), 0.35);
+}
+
+.study-chart-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Modal (deck editor + pomo settings) ──────────────────────────── */
+.study-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-color);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: 24px;
+  animation: fadeIn 0.2s ease both;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.study-modal {
+  width: 100%;
+  max-width: 640px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  animation: modalPopIn 0.25s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.study-modal-sm { max-width: 440px; }
+
+@keyframes modalPopIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+.study-modal-head,
+.study-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.study-modal-foot {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: none;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.study-modal-head h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 400;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.study-modal-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.study-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.study-field > span {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+.study-field input[type="text"],
+.study-field input[type="number"],
+.study-field textarea {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.study-field input:focus,
+.study-field textarea:focus {
+  border-color: rgba(var(--accent-primary-rgb), 0.5);
+  background: rgba(0, 0, 0, 0.3);
+}
+.study-field-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.study-field-row > span {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.study-cards-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.study-cards-head h4 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 16px;
+  font-weight: 400;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.study-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.study-card-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+.study-card-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+@media (max-width: 560px) {
+  .study-card-inputs { grid-template-columns: 1fr; }
+}
+.study-card-inputs textarea {
+  resize: vertical;
+  min-height: 48px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.study-card-inputs textarea:focus {
+  border-color: rgba(var(--accent-primary-rgb), 0.5);
+}
+
+/* ── Study overlay (flashcard review) ─────────────────────────────── */
+.study-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-color);
+  backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  z-index: var(--z-overlay);
+  /* Top + right padding clears the frameless-window controls
+     (minimize / maximize / close, ~140px wide block at top-right —
+     same pattern documented in CLAUDE.md "Build Notes" for the file
+     preview header). Without this, the overlay's own close-X button
+     stacks on top of the Windows close-X and the user sees two X's
+     fighting for the corner. Also pushes the action-bar items left
+     so they don't sit under the window controls. */
+  padding: 40px 148px 32px 32px;
+  animation: fadeIn 0.2s ease both;
+  outline: none;
+}
+
+.study-overlay-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 8px;
+  flex-shrink: 0;
+}
+.study-overlay-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.study-overlay-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.study-overlay-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.study-overlay-progress {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(var(--accent-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.2);
+  flex-shrink: 0;
+}
+/* Shown only when the daily new-card cap is limiting the queue
+   (e.g. "5 / 19 of 100"). Tells the user cards are being held back. */
+.study-capped-pill {
+  color: var(--accent-warm);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  margin-left: 4px;
+  opacity: 0.85;
+}
+/* The "study all" action button — surfaces when queue is capped.
+   Uses accent-warm to echo the capped-pill color so the affordance
+   reads as "click this to un-cap". */
+.study-icon-btn.study-study-all-btn {
+  color: var(--accent-warm);
+  background: rgba(var(--accent-warm-rgb), 0.1);
+  border-color: rgba(var(--accent-warm-rgb), 0.3);
+}
+.study-icon-btn.study-study-all-btn:hover {
+  background: rgba(var(--accent-warm-rgb), 0.2);
+  border-color: rgba(var(--accent-warm-rgb), 0.55);
+}
+
+/* Quizlet-style progress bar — linear bar under the top action row that
+   fills as the user advances through the queue. */
+.study-progress-track {
+  height: 4px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+.study-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg,
+    rgba(var(--accent-primary-rgb), 0.85),
+    rgba(var(--accent-secondary-rgb), 0.95));
+  border-radius: 2px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Three-column stage: prev arrow | card | next arrow. The arrows live
+   outside the card itself so they're always click-targets even while
+   the card is mid-flip. */
+.study-flashcard-stage {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  /* Perspective on the stage (not the card or any ancestor of it) so
+     the 3D flip renders with depth. */
+  perspective: 1600px;
+  padding: 20px 0;
+  min-height: 280px;
+}
+
+.study-nav-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+  padding: 0;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.study-nav-btn:hover:not(:disabled) {
+  background: rgba(var(--accent-primary-rgb), 0.14);
+  border-color: rgba(var(--accent-primary-rgb), 0.4);
+  color: var(--text-primary);
+  transform: scale(1.05);
+}
+.study-nav-btn:active:not(:disabled) { transform: scale(0.97); }
+.study-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.study-flashcard-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.study-flashcard {
+  width: 100%;
+  max-width: 720px;
+  height: 360px;
+  position: relative;
+  cursor: pointer;
+  outline: none;
+}
+
+.study-flashcard-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.study-flashcard.is-flipped .study-flashcard-inner {
+  transform: rotateY(180deg);
+}
+
+/* IMPORTANT: faces are NOT .glass-card. The .glass-card hover rule
+   sets `transform: translateY(-2px)`, which would CLOBBER the back
+   face's `transform: rotateY(180deg)` whenever the user hovered it,
+   making the card disappear (it'd no longer be rotated to face the
+   camera). We replicate the glass-morphism look here directly so the
+   face is fully self-contained — no inherited hover side effects. */
+.study-flashcard-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 36px 28px;
+  text-align: center;
+  gap: 14px;
+  /* Glass-morphism look (mirrors .glass-card visuals — but without the
+     hover rule that breaks the rotateY). */
+  background: var(--glass-card-bg);
+  backdrop-filter: var(--glass-sub-blur);
+  -webkit-backdrop-filter: var(--glass-sub-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow:
+    0 12px 40px var(--glass-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.study-flashcard-back {
+  transform: rotateY(180deg);
+}
+
+/* Top bar inside each face — small "Question/Answer" label on the
+   left, star button pinned to the right. */
+.study-flashcard-topbar {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.study-flashcard-kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.study-star-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  padding: 0;
+}
+.study-star-btn:hover {
+  background: rgba(var(--accent-warm-rgb), 0.14);
+  border-color: rgba(var(--accent-warm-rgb), 0.3);
+  color: var(--accent-warm);
+  transform: scale(1.05);
+}
+.study-star-btn.is-starred {
+  color: var(--accent-warm);
+  background: rgba(var(--accent-warm-rgb), 0.1);
+  border-color: rgba(var(--accent-warm-rgb), 0.25);
+}
+
+.study-flashcard-content {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--text-primary);
+  max-width: 640px;
+  overflow-wrap: break-word;
+}
+
+.study-flashcard-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  letter-spacing: 0.3px;
+  position: absolute;
+  bottom: 16px;
+}
+
+.study-grade-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  flex-shrink: 0;
+  animation: gradeBarIn 0.3s ease both;
+}
+.study-grade-bar.is-hidden { visibility: hidden; pointer-events: none; }
+.study-grade-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.study-grade-note {
+  font-size: 11px;
+  color: var(--accent-warm);
+  font-style: italic;
+  text-align: center;
+  padding: 4px 0;
+  letter-spacing: 0.3px;
+}
+
+@keyframes gradeBarIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.study-grade-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+.study-grade-btn:hover { transform: translateY(-2px); }
+.study-grade-btn:active { transform: translateY(0); }
+
+.study-grade-label {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+.study-grade-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+}
+
+.study-grade-again {
+  border-color: rgba(var(--accent-error-rgb), 0.3);
+  background: rgba(var(--accent-error-rgb), 0.08);
+}
+.study-grade-again:hover {
+  background: rgba(var(--accent-error-rgb), 0.16);
+  border-color: rgba(var(--accent-error-rgb), 0.5);
+}
+
+.study-grade-hard {
+  border-color: rgba(var(--accent-warning-rgb), 0.3);
+  background: rgba(var(--accent-warning-rgb), 0.08);
+}
+.study-grade-hard:hover {
+  background: rgba(var(--accent-warning-rgb), 0.16);
+  border-color: rgba(var(--accent-warning-rgb), 0.5);
+}
+
+.study-grade-good {
+  border-color: rgba(var(--accent-primary-rgb), 0.3);
+  background: rgba(var(--accent-primary-rgb), 0.1);
+}
+.study-grade-good:hover {
+  background: rgba(var(--accent-primary-rgb), 0.2);
+  border-color: rgba(var(--accent-primary-rgb), 0.5);
+}
+
+.study-grade-easy {
+  border-color: rgba(var(--accent-success-rgb), 0.3);
+  background: rgba(var(--accent-success-rgb), 0.1);
+}
+.study-grade-easy:hover {
+  background: rgba(var(--accent-success-rgb), 0.2);
+  border-color: rgba(var(--accent-success-rgb), 0.5);
+}
+
+/* ── End-of-session summary ─────────────────────────────────────────
+   Shown after the user grades the last card or hits Next on the last
+   card. Big celebratory layout with options to study again, study
+   only the cards they starred, or exit. */
+.study-end-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  gap: 18px;
+  animation: gradeBarIn 0.4s ease both;
+}
+.study-end-medal {
+  font-size: 64px;
+  line-height: 1;
+  /* Subtle bob — celebratory without being annoying. The animation is
+     on a leaf element (no .glass-card descendants) so it can use
+     transform safely. */
+  animation: medalBob 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes medalBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.study-end-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px;
+  font-weight: 400;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+.study-end-sub {
+  font-size: 15px;
+  color: var(--text-secondary);
+  font-weight: 300;
+  margin: 0;
+  max-width: 480px;
+  line-height: 1.5;
+}
+.study-end-sub strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.study-end-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}

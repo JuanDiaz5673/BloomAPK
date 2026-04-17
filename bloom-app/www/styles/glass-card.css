@@ -1,0 +1,58 @@
+/* ─── Glass Card ─── */
+.glass-card {
+  background: var(--glass-card-bg);
+  /* Blur radius controlled by --glass-sub-blur — see variables.css
+     for why 24px is the sweet spot between frosted look and GPU cost. */
+  backdrop-filter: var(--glass-sub-blur);
+  -webkit-backdrop-filter: var(--glass-sub-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow:
+    0 8px 32px var(--glass-shadow),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  /* CRITICAL: do NOT use `transition: all` here. Glass cards are
+     embedded in flex/grid layouts that get reflowed any time the
+     sidebar expands or collapses (300ms width animation). With
+     `all`, the layout-driven width change of the card kicks off a
+     350ms width tween — but the NEXT frame the layout decides on a
+     new width and a fresh tween starts. Tweens stack up frame-by-
+     frame, the card's rendered width lags behind its layout width,
+     and the visible result is the "sputter" the user sees during
+     sidebar expansion (most obvious on the Settings → Theme grid
+     because each grid cell has its own expensive background-image
+     and the auto-fill column count fluctuates). Enumerate exactly
+     the properties we want animated for hover (border-color,
+     box-shadow, transform). Width and other layout properties must
+     snap instantly to whatever the layout decides. */
+  transition:
+    border-color 0.35s cubic-bezier(0.4,0,0.2,1),
+    box-shadow 0.35s cubic-bezier(0.4,0,0.2,1),
+    transform 0.35s cubic-bezier(0.4,0,0.2,1);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass-border-hover), transparent);
+}
+
+.glass-card:hover {
+  border-color: var(--glass-border-hover);
+  box-shadow:
+    0 12px 40px rgba(var(--accent-secondary-rgb), 0.12),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+  transform: translateY(-2px);
+}
+
+/* ─── Section Headers ─── */
+.card-title {
+  font-size: 13px; font-weight: 400; letter-spacing: 0.3px;
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+.card-title svg {
+  width: 16px; height: 16px; stroke: var(--accent-blush); stroke-width: 1.8; fill: none;
+}

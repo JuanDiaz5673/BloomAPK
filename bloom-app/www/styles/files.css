@@ -1,0 +1,308 @@
+/* ─── Files View ─── */
+.files-view {
+  display: flex; flex-direction: column;
+  height: 100%; min-height: 0;
+  min-width: 0;
+  gap: 12px;
+}
+
+
+.files-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.files-breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-secondary);
+}
+
+.files-breadcrumb-item {
+  cursor: pointer; transition: color 0.2s;
+  font-weight: 300;
+}
+
+.files-breadcrumb-item:hover { color: var(--text-primary); }
+
+.files-breadcrumb-item.current {
+  color: var(--text-primary); font-weight: 400;
+}
+
+.files-breadcrumb-sep {
+  color: var(--text-muted); font-size: 10px;
+}
+
+.files-view-toggle {
+  display: flex; gap: 4px;
+}
+
+.files-view-toggle button {
+  width: 32px; height: 32px;
+  border-radius: 8px; border: 1px solid rgba(255,150,180,0.15);
+  background: rgba(255,107,157,0.06);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.3s cubic-bezier(0.4,0,0.2,1), border-color 0.3s cubic-bezier(0.4,0,0.2,1), color 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: 0 2px 6px var(--glass-shadow);
+}
+
+.files-view-toggle button.active {
+  background: rgba(255,107,157,0.2);
+  border-color: var(--glass-border-hover);
+  box-shadow: 0 2px 8px rgba(255,107,157,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.files-view-toggle button:hover:not(.active) {
+  background: rgba(30, 12, 20, 0.4);
+  border-color: var(--glass-border-hover);
+}
+
+.files-view-toggle button svg {
+  width: 16px; height: 16px;
+  stroke: var(--text-secondary); stroke-width: 1.8; fill: none;
+}
+
+/* Grid layout */
+.files-content {
+  flex: 1; overflow-y: auto;
+  min-height: 0;
+}
+
+.files-grid-view {
+  display: grid;
+  /* Smaller minmax so more columns fit on narrower windows; at very narrow
+     widths this falls to 1-column which is still readable. */
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.files-list-view {
+  display: flex; flex-direction: column; gap: 2px;
+}
+
+.file-entry {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,107,157,0.06);
+  border: 1px solid rgba(255,180,200,0.1);
+  display: flex; align-items: center; gap: 12px;
+  cursor: pointer;
+  transition: background-color 0.3s cubic-bezier(0.4,0,0.2,1), border-color 0.3s cubic-bezier(0.4,0,0.2,1), color 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s cubic-bezier(0.4,0,0.2,1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* File entry wrapper for tree */
+.file-entry-wrapper {
+  display: flex; flex-direction: column;
+}
+
+/* Tree toggle arrow */
+.file-tree-toggle {
+  width: 24px; height: 24px;
+  border-radius: 6px; border: none;
+  background: transparent;
+  color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.file-tree-toggle:hover {
+  background: rgba(var(--accent-primary-rgb), 0.1);
+  color: var(--text-primary);
+}
+
+.file-tree-toggle svg {
+  transition: transform 0.2s ease;
+}
+
+.file-tree-toggle.expanded svg {
+  transform: rotate(90deg);
+}
+
+/* Tree children container */
+.file-tree-children {
+  margin-left: 20px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(var(--accent-muted-rgb), 0.1);
+  display: flex; flex-direction: column; gap: 2px;
+  padding-top: 4px; padding-bottom: 4px;
+}
+
+/* Individual tree item */
+.file-tree-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  color: var(--text-secondary);
+}
+
+.file-tree-item:hover {
+  background: rgba(var(--accent-primary-rgb), 0.08);
+  color: var(--text-primary);
+}
+
+.file-tree-item.directory {
+  color: var(--accent-warm);
+}
+
+/* Action buttons (New Folder, Upload) */
+.files-action-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: rgba(var(--accent-primary-rgb), 0.06);
+  color: var(--text-secondary);
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px; font-weight: 400;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  white-space: nowrap;
+}
+
+.files-action-btn:hover {
+  background: rgba(var(--accent-primary-rgb), 0.15);
+  color: var(--text-primary);
+  border-color: var(--glass-border-hover);
+}
+
+/* Delete button on file entries */
+.file-delete-btn {
+  position: absolute; top: 8px; right: 8px;
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(0,0,0,0.4);
+  color: #ff9a9a;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  z-index: 5;
+}
+
+.file-entry:hover .file-delete-btn {
+  opacity: 1;
+}
+
+.file-delete-btn:hover {
+  background: rgba(255,80,80,0.6);
+  color: white;
+}
+
+.file-entry::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,200,210,0.2), transparent);
+}
+
+.file-entry:hover {
+  background: rgba(255,107,157,0.12);
+  border-color: rgba(255,150,180,0.2);
+  transform: translateY(-2px);
+}
+
+.file-entry.directory {
+  border-left: 3px solid var(--accent-warm);
+}
+
+.file-entry-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.file-entry-icon.folder { background: rgba(253,154,108,0.15); }
+.file-entry-icon.file { background: rgba(255,107,157,0.1); }
+
+.file-entry-icon svg {
+  width: 18px; height: 18px; stroke-width: 1.8; fill: none;
+}
+
+.file-entry-info { flex: 1; min-width: 0; }
+.file-entry-info .file-entry-name {
+  font-size: 12px; font-weight: 400;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.file-entry-info .file-entry-meta {
+  font-size: 10px; color: var(--text-muted); font-weight: 300;
+  margin-top: 1px;
+}
+
+/* ─── File Preview Panel ─── */
+.file-preview-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  animation: fadeIn 0.2s ease;
+}
+
+.file-preview-panel {
+  width: 100%; height: 100%;
+  min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  border-radius: 16px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.file-preview-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  padding-top: 36px;
+  padding-right: 140px;
+  border-bottom: 1px solid rgba(255,180,200,0.06);
+  background: rgba(255,107,157,0.04);
+  flex-shrink: 0;
+}
+
+.file-preview-back {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,107,157,0.06); border: 1px solid rgba(255,150,180,0.15);
+  color: var(--text-secondary);
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px; font-weight: 400;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 10px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.file-preview-back:hover {
+  background: rgba(255,107,157,0.15);
+  border-color: rgba(255,150,180,0.25);
+  color: var(--text-primary);
+}
+
+.file-preview-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px; font-weight: 400;
+  color: var(--text-primary);
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 16px;
+}
+
+.file-preview-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.file-preview-content webview {
+  width: 100%;
+  height: 100%;
+  border: none;
+}

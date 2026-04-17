@@ -1,0 +1,133 @@
+/* ─── Main Content ─── */
+.main {
+  flex: 1;
+  height: 100vh;
+  overflow: hidden;
+  padding: 16px 20px;
+  position: relative; z-index: 5;
+  display: flex; flex-direction: column;
+  min-width: 0;
+  width: 100%;
+}
+
+/* ─── Header ─── */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+  animation: fadeSlideDown 0.7s ease both;
+  flex-shrink: 0;
+  padding-top: 20px; /* Space for frameless titlebar */
+}
+
+.header-left {
+  /* Prevent the header-left from overflowing its flex slot (the H1 below
+     clips with ellipsis instead of pushing action buttons off-screen). */
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.header-left h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 30px; font-weight: 600; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #fff 30%, var(--accent-blush));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  /* Clip long greetings (e.g. "Good evening, Christopher") instead of wrapping */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.header-left p {
+  font-size: 13px; color: var(--text-muted); margin-top: 2px;
+  font-weight: 300; letter-spacing: 0.5px;
+}
+
+/* Header title + subtitle cross-fade with subtle vertical motion when view changes.
+   Driven by inline styles set in Header.updateForView() — keep CSS minimal so JS owns the transition. */
+#header-title, #header-subtitle {
+  will-change: opacity, transform;
+}
+
+.header-right {
+  display: flex; align-items: center; gap: 14px;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0; /* keep action buttons at full size; header-left gets clipped instead */
+}
+
+.header-action {
+  width: 36px; height: 36px;
+  border-radius: 13px; border: none;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary); /* ensures currentColor resolves for SVG children */
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
+  position: relative;
+}
+
+.header-action:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
+}
+
+.header-action svg {
+  width: 18px; height: 18px;
+  stroke: var(--text-secondary);
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.header-action .badge {
+  position: absolute; top: 8px; right: 8px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent-pink);
+  box-shadow: 0 0 8px rgba(255,107,157,0.6);
+}
+
+/* ─── Notifications bell — variants ─── */
+/* Both states use the standard header-action white-ish color (--text-secondary).
+   The visual distinction is outline-vs-filled SVG, swapped in notifications.js. */
+
+/* When the bell is in "filled" state, fill the bell body (first path) with the same
+   white-ish color used for stroke. The clapper (second path) stays as a stroke-only line. */
+#btn-notifications.notifications-has svg path:first-of-type,
+#btn-notifications.notifications-soon svg path:first-of-type {
+  fill: var(--text-secondary);
+}
+
+/* Has events soon (≤24h): subtle pulse on the dot draws attention. */
+#btn-notifications.notifications-soon .badge {
+  animation: bellBadgePulse 2.4s ease-in-out infinite;
+}
+
+@keyframes bellBadgePulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 8px rgba(var(--accent-primary-rgb), 0.6); }
+  50%      { transform: scale(1.25); box-shadow: 0 0 14px rgba(var(--accent-primary-rgb), 0.9); }
+}
+
+.avatar {
+  width: 36px; height: 36px; border-radius: 11px;
+  background: linear-gradient(135deg, var(--accent-pink), var(--accent-rose));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 500;
+  box-shadow: 0 4px 16px rgba(var(--accent-primary-rgb), 0.25);
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  overflow: hidden;
+}
+
+.avatar:hover { transform: scale(1.05); }
+.avatar img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: inherit;
+}
+
+/* Language toggle removed — keeping styles below for any future re-add. */

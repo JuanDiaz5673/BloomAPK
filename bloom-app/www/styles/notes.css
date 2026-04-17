@@ -1,0 +1,1622 @@
+/* ─── Notes View ─── */
+.notes-view {
+  display: flex; height: 100%; min-height: 0;
+  gap: 12px;
+}
+
+/* ─── Sidebar Panel ─── */
+.notes-list-panel {
+  width: 280px;
+  min-width: 200px;
+  flex: 0 1 280px;
+  display: flex; flex-direction: column;
+  padding: 14px;
+}
+
+.notes-list-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.notes-list-header h3 {
+  font-size: 13px; font-weight: 400; letter-spacing: 0.3px;
+}
+
+.notes-list {
+  flex: 1; overflow-y: auto;
+  min-height: 0;
+  display: flex; flex-direction: column; gap: 4px;
+}
+
+.note-list-item {
+  padding: 10px 12px; border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.25s cubic-bezier(0.4,0,0.2,1), border-color 0.25s cubic-bezier(0.4,0,0.2,1), color 0.25s cubic-bezier(0.4,0,0.2,1), transform 0.25s cubic-bezier(0.4,0,0.2,1), box-shadow 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.25s cubic-bezier(0.4,0,0.2,1);
+  border-left: 3px solid transparent;
+}
+
+.note-list-item:hover {
+  background: rgba(255,107,157,0.08);
+  border-color: rgba(255,150,180,0.1);
+}
+
+.note-list-item.active {
+  background: rgba(255,107,157,0.12);
+  border: 1px solid rgba(255,150,180,0.15);
+  border-left: 3px solid var(--accent-pink);
+  box-shadow: 0 2px 8px var(--glass-shadow);
+}
+
+.note-list-item .note-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px; font-weight: 400;
+  margin-bottom: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.note-list-item .note-date {
+  font-family: 'Outfit', sans-serif;
+  font-size: 9.5px; color: var(--text-muted); font-weight: 300;
+  margin-top: 2px;
+}
+
+/* ─── Editor Panel ─── */
+.notes-editor-panel {
+  flex: 1; display: flex; flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* .notes-editor-header styling moved to the scoped rule near the page-icon
+   slot (below) so the icon + title share one header chrome as a column. */
+
+.notes-title-input {
+  background: transparent; border: none; outline: none;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px; font-weight: 400;
+  color: rgba(255, 255, 255, 0.95);
+  width: 100%;
+  min-width: 0;
+  /* Long titles clip with ellipsis while editing — prevents horizontal overflow
+     that'd push the delete button off-screen */
+  text-overflow: ellipsis;
+}
+
+.notes-title-input::placeholder { color: var(--text-muted); }
+
+/* Delete button */
+.notes-delete-btn {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,120,120,0.3);
+  background: rgba(255,80,80,0.1);
+  color: var(--accent-error);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  flex-shrink: 0;
+}
+
+.notes-delete-btn:hover {
+  background: rgba(255,80,80,0.25);
+  border-color: rgba(255,120,120,0.4);
+  color: rgba(var(--accent-error-rgb), 0.85);
+}
+
+/* Save status */
+.notes-save-status {
+  font-family: 'Outfit', sans-serif;
+  font-size: 10px; color: var(--accent-success);
+  font-weight: 500; flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: rgba(111,219,139,0.15);
+  border: 1px solid rgba(111,219,139,0.2);
+}
+
+.notes-save-status.saving {
+  color: var(--accent-warning);
+  background: rgba(253,154,108,0.15);
+  border-color: rgba(253,154,108,0.2);
+}
+
+/* ─── TipTap Editor (replaces Quill) ─── */
+
+/* ─── Top formatting toolbar ───
+   Sits between the note title header and the editor surface. Carries the
+   same pink tint as the header so the two feel like a continuous chrome
+   band. `flex-wrap: wrap` keeps everything visible when the panel narrows;
+   `flex-shrink: 0` on the toolbar root prevents it from squishing below
+   its natural height. */
+.notes-editor-panel .tt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 14px;
+  background: rgba(255, 107, 157, 0.04);
+  border-bottom: 1px solid rgba(255, 180, 200, 0.06);
+  flex-shrink: 0;
+}
+
+.notes-editor-panel .tt-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 180, 200, 0.12);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+/* Individual icon buttons */
+.notes-editor-panel .tt-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.notes-editor-panel .tt-btn:hover:not(:disabled) {
+  background: rgba(255, 107, 157, 0.1);
+  color: var(--accent-pink);
+}
+
+.notes-editor-panel .tt-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.notes-editor-panel .tt-btn.active {
+  background: rgba(255, 107, 157, 0.18);
+  color: var(--accent-pink);
+  box-shadow: inset 0 0 0 1px rgba(255, 150, 180, 0.25);
+}
+
+.notes-editor-panel .tt-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Segmented control for block type (P / H1 / H2 / H3) */
+.notes-editor-panel .tt-seg-group {
+  display: inline-flex;
+  border-radius: 8px;
+  background: rgba(255, 107, 157, 0.06);
+  border: 1px solid rgba(255, 180, 200, 0.1);
+  padding: 2px;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.notes-editor-panel .tt-seg {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  padding: 4px 8px;
+  min-width: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.notes-editor-panel .tt-seg:hover {
+  color: var(--text-primary);
+  background: rgba(255, 107, 157, 0.08);
+}
+
+.notes-editor-panel .tt-seg.active {
+  background: var(--accent-pink);
+  color: white;
+  box-shadow: 0 1px 4px rgba(255, 107, 157, 0.35);
+}
+
+/* Mount point — fills the panel below the header. */
+.notes-editor-panel #tiptap-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The ProseMirror contenteditable itself — this is where typing happens. */
+.notes-editor-panel .ProseMirror {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px 40px;
+  background: transparent;
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.8;
+  letter-spacing: 0.2px;
+  color: rgba(255, 255, 255, 0.82);
+  outline: none;
+}
+
+/* Placeholder — appears only when the very first node is empty. */
+.notes-editor-panel .ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--text-muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  font-weight: 300;
+}
+
+/* Typography — match the Cormorant serif treatment used elsewhere. */
+.notes-editor-panel .ProseMirror h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px; font-weight: 400;
+  color: var(--text-primary);
+  margin: 18px 0 8px;
+}
+.notes-editor-panel .ProseMirror h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px; font-weight: 400;
+  color: var(--text-primary);
+  margin: 16px 0 6px;
+}
+.notes-editor-panel .ProseMirror h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px; font-weight: 400;
+  color: var(--text-primary);
+  margin: 14px 0 4px;
+}
+
+.notes-editor-panel .ProseMirror p { margin: 0 0 8px; }
+
+/* Blockquote — matches the Quill styling precisely */
+.notes-editor-panel .ProseMirror blockquote,
+.notes-editor-panel .ProseMirror .tt-blockquote {
+  border-left: 3px solid var(--accent-pink);
+  padding-left: 14px;
+  margin: 8px 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Code block */
+.notes-editor-panel .ProseMirror pre,
+.notes-editor-panel .ProseMirror .tt-codeblock {
+  background: rgba(30, 12, 20, 0.4);
+  border: 1px solid rgba(255,180,200,0.06);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 10px 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+.notes-editor-panel .ProseMirror pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Inline code */
+.notes-editor-panel .ProseMirror code {
+  background: rgba(255,107,157,0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Links */
+.notes-editor-panel .ProseMirror a,
+.notes-editor-panel .ProseMirror .tt-link {
+  color: var(--accent-pink);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255,107,157,0.3);
+  transition: border-color 0.2s;
+}
+.notes-editor-panel .ProseMirror a:hover { border-bottom-color: var(--accent-pink); }
+
+/* Bullet / ordered lists */
+.notes-editor-panel .ProseMirror ul,
+.notes-editor-panel .ProseMirror ol { padding-left: 24px; margin: 6px 0; }
+.notes-editor-panel .ProseMirror li { margin-bottom: 4px; }
+.notes-editor-panel .ProseMirror li > p { margin: 0; }
+
+/* Task list (checkbox list) */
+.notes-editor-panel .ProseMirror ul[data-type="taskList"],
+.notes-editor-panel .ProseMirror .tt-tasklist {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+}
+.notes-editor-panel .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.notes-editor-panel .ProseMirror ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 3px;
+  user-select: none;
+}
+.notes-editor-panel .ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid rgba(255,150,180,0.35);
+  border-radius: 4px;
+  background: rgba(255,107,157,0.06);
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+  display: inline-block;
+  vertical-align: middle;
+}
+.notes-editor-panel .ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background: var(--accent-pink);
+  border-color: var(--accent-pink);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+  background-size: 11px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.notes-editor-panel .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.notes-editor-panel .ProseMirror ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
+
+/* Horizontal rule */
+.notes-editor-panel .ProseMirror hr,
+.notes-editor-panel .ProseMirror .tt-hr {
+  border: none;
+  border-top: 1px solid rgba(255,180,200,0.12);
+  margin: 18px 0;
+}
+
+/* Highlight mark */
+.notes-editor-panel .ProseMirror mark,
+.notes-editor-panel .ProseMirror .tt-highlight {
+  background: rgba(253, 203, 110, 0.2);
+  color: inherit;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+/* Strikethrough */
+.notes-editor-panel .ProseMirror s { color: var(--text-muted); }
+
+/* Images */
+.notes-editor-panel .ProseMirror img {
+  max-width: 100%;
+  border-radius: 10px;
+  margin: 8px 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+/* Selected text — match the pink accent so selections feel branded. */
+.notes-editor-panel .ProseMirror ::selection {
+  background: rgba(255, 107, 157, 0.28);
+}
+
+/* ─── PageLink (embedded sub-page) custom node ─── */
+.notes-editor-panel .ProseMirror .tt-page-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 8px 0;
+  border-radius: 10px;
+  background: rgba(var(--accent-primary-rgb), 0.06);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.14);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.1s ease;
+}
+.notes-editor-panel .ProseMirror .tt-page-link:hover {
+  background: rgba(var(--accent-primary-rgb), 0.12);
+  border-color: rgba(var(--accent-primary-rgb), 0.25);
+}
+.notes-editor-panel .ProseMirror .tt-page-link:active {
+  transform: scale(0.995);
+}
+/* ProseMirror "selected" state — show a pink outline when the node is picked via keyboard/arrows */
+.notes-editor-panel .ProseMirror .tt-page-link.ProseMirror-selectednode {
+  outline: 2px solid var(--accent-pink);
+  outline-offset: 1px;
+}
+.notes-editor-panel .ProseMirror .tt-page-link-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: linear-gradient(135deg, rgba(var(--accent-primary-rgb), 0.25), rgba(var(--accent-primary-rgb), 0.1));
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.18);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.notes-editor-panel .ProseMirror .tt-page-link-icon:hover {
+  background: linear-gradient(135deg, rgba(var(--accent-primary-rgb), 0.4), rgba(var(--accent-primary-rgb), 0.18));
+  border-color: rgba(var(--accent-primary-rgb), 0.4);
+  transform: scale(1.08);
+}
+/* When an emoji icon is overlaid, hide the default SVG-mask doc icon. */
+.notes-editor-panel .ProseMirror .tt-page-link-icon.has-emoji::before { display: none; }
+.notes-editor-panel .ProseMirror .tt-page-link-icon.has-emoji {
+  background: transparent;
+  border-color: transparent;
+}
+.notes-editor-panel .ProseMirror .tt-page-link-emoji {
+  font-size: 18px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Document icon inside the tile, rendered via SVG mask so it picks up theme colors */
+.notes-editor-panel .ProseMirror .tt-page-link-icon::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  background: var(--accent-pink);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.notes-editor-panel .ProseMirror .tt-page-link-title {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Subtle underline on the title matches the "link" affordance */
+  border-bottom: 1px solid transparent;
+  padding-bottom: 1px;
+}
+.notes-editor-panel .ProseMirror .tt-page-link:hover .tt-page-link-title {
+  border-bottom-color: rgba(var(--accent-primary-rgb), 0.35);
+}
+.notes-editor-panel .ProseMirror .tt-page-link-chevron {
+  font-size: 20px;
+  font-weight: 300;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  line-height: 1;
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+.notes-editor-panel .ProseMirror .tt-page-link:hover .tt-page-link-chevron {
+  color: var(--accent-pink);
+  transform: translateX(2px);
+}
+
+/* ─── Callout block (custom node) ─── */
+/*
+ * The callout NodeView produces this DOM:
+ *   <div class="tt-callout" data-callout data-variant data-icon?>
+ *     <button class="tt-callout-icon">[emoji or empty]</button>
+ *     <div class="tt-callout-content">[ProseMirror children]</div>
+ *   </div>
+ *
+ * Layout: flex row so the icon sits at left and the content fills the
+ * remaining width. No more position:absolute on the icon (it's a real
+ * clickable button now); no more padding-left on the wrapper.
+ */
+.notes-editor-panel .ProseMirror .tt-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  margin: 10px 0;
+  border-radius: 12px;
+  background: rgba(var(--accent-primary-rgb), 0.07);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.18);
+  border-left: 3px solid var(--accent-pink);
+}
+.notes-editor-panel .ProseMirror .tt-callout-content {
+  flex: 1;
+  min-width: 0;
+}
+.notes-editor-panel .ProseMirror .tt-callout-content > p:last-child { margin-bottom: 0; }
+.notes-editor-panel .ProseMirror .tt-callout-content > p:first-child { margin-top: 0; }
+
+/* The icon button — clickable, swaps to an emoji picker on click.
+   When empty (no custom icon set), CSS draws the default variant SVG via
+   the :empty::before pseudo. When non-empty, the button's textContent
+   shows the chosen emoji directly. */
+.notes-editor-panel .ProseMirror .tt-callout-icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font-size: 17px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  user-select: none;
+  padding: 0;
+  /* Subtle pulse hint that the icon is interactive */
+}
+.notes-editor-panel .ProseMirror .tt-callout-icon:hover {
+  background: rgba(var(--accent-primary-rgb), 0.15);
+  border-color: rgba(var(--accent-primary-rgb), 0.32);
+  transform: scale(1.06);
+}
+.notes-editor-panel .ProseMirror .tt-callout-icon:active {
+  transform: scale(0.98);
+}
+/* Default icon (empty button) — INFO variant: pink "i in a circle" */
+.notes-editor-panel .ProseMirror .tt-callout-icon:empty::before {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  background-color: var(--accent-pink);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Ccircle cx='12' cy='16' r='0.7' fill='black'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Ccircle cx='12' cy='16' r='0.7' fill='black'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+/* Default icon for WARNING variant — orange triangle */
+.notes-editor-panel .ProseMirror .tt-callout[data-variant="warning"] {
+  background: rgba(var(--accent-warm-rgb), 0.08);
+  border-color: rgba(var(--accent-warm-rgb), 0.22);
+  border-left-color: var(--accent-warm);
+}
+.notes-editor-panel .ProseMirror .tt-callout[data-variant="warning"] .tt-callout-icon:empty::before {
+  background-color: var(--accent-warm);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'/%3E%3Cline x1='12' y1='9' x2='12' y2='13'/%3E%3Ccircle cx='12' cy='17' r='0.7' fill='black'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'/%3E%3Cline x1='12' y1='9' x2='12' y2='13'/%3E%3Ccircle cx='12' cy='17' r='0.7' fill='black'/%3E%3C/svg%3E");
+}
+
+/* Custom scrollbar for the editor */
+.notes-editor-panel .ProseMirror::-webkit-scrollbar { width: 4px; }
+.notes-editor-panel .ProseMirror::-webkit-scrollbar-track { background: transparent; }
+.notes-editor-panel .ProseMirror::-webkit-scrollbar-thumb {
+  background: rgba(255,107,157,0.2);
+  border-radius: 2px;
+}
+
+/* ─── Slash command menu (tippy theme: "alldash") ─── */
+.tippy-box[data-theme~="alldash"] {
+  background: rgba(30, 12, 20, 0.96);
+  backdrop-filter: var(--glass-sub-blur);
+  -webkit-backdrop-filter: var(--glass-sub-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px var(--glass-shadow);
+  color: var(--text-primary);
+  padding: 0;
+}
+.tippy-box[data-theme~="alldash"] .tippy-content { padding: 0; }
+
+.tt-slash-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  min-width: 230px;
+  font-family: 'Outfit', sans-serif;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,107,157,0.3) transparent;
+}
+.tt-slash-menu::-webkit-scrollbar { width: 4px; }
+.tt-slash-menu::-webkit-scrollbar-thumb { background: rgba(255,107,157,0.3); border-radius: 2px; }
+
+.tt-slash-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.tt-slash-item.active,
+.tt-slash-item:hover {
+  background: rgba(255, 107, 157, 0.14);
+}
+
+.tt-slash-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,107,157,0.1);
+  color: var(--accent-pink);
+  flex-shrink: 0;
+  border: 1px solid rgba(255,150,180,0.12);
+}
+.tt-slash-item.active .tt-slash-icon { background: rgba(255,107,157,0.2); }
+
+.tt-slash-text { display: flex; flex-direction: column; min-width: 0; }
+.tt-slash-title {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-primary);
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tt-slash-hint {
+  font-size: 10px;
+  font-weight: 300;
+  color: var(--text-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tt-slash-empty {
+  padding: 14px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300;
+}
+
+/* ─── Folder Items (redesigned) ─── */
+.note-folder-wrapper {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 2px;
+}
+
+/* Main folder row — distinct "shelf" treatment with warm accent gradient */
+.note-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 4px; /* tight chevron→tile pairing; text/delete add their own margin */
+  padding: 8px 10px 8px 6px;
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--accent-warm-rgb), 0.10) 0%,
+    rgba(var(--accent-warm-rgb), 0.04) 60%,
+    transparent 100%
+  );
+  border: 1px solid rgba(var(--accent-warm-rgb), 0.10);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.note-folder-row:hover {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--accent-warm-rgb), 0.18) 0%,
+    rgba(var(--accent-warm-rgb), 0.08) 60%,
+    transparent 100%
+  );
+  border-color: rgba(var(--accent-warm-rgb), 0.22);
+}
+
+.note-folder-row:active {
+  transform: scale(0.99);
+}
+
+/* Folder icon inside a rounded-square accent tile (matches Settings card icon style) */
+.note-folder-icon-tile {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(var(--accent-warm-rgb), 0.22), rgba(var(--accent-warm-rgb), 0.10));
+  border: 1px solid rgba(var(--accent-warm-rgb), 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(var(--accent-warm-rgb), 0.15);
+}
+
+.note-folder-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-left: 8px; /* breathing room from the icon tile */
+}
+
+.note-folder-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-folder-meta {
+  font-size: 9.5px;
+  font-weight: 300;
+  color: rgba(var(--accent-warm-rgb), 0.85);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.note-folder-delete {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: none;
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(255, 154, 154, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateX(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.note-folder-row:hover .note-folder-delete {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.note-folder-delete:hover {
+  background: rgba(255, 80, 80, 0.5);
+  color: white;
+}
+
+/* ─── Note Quick Delete ─── */
+.note-list-item[data-note-id] {
+  display: flex; align-items: center;
+  position: relative;
+}
+
+.note-quick-delete {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 20px; height: 20px;
+  border-radius: 5px; border: none;
+  background: transparent;
+  color: var(--accent-error);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.note-list-item:hover .note-quick-delete {
+  opacity: 0.6;
+}
+
+.note-quick-delete:hover {
+  opacity: 1 !important;
+  background: rgba(255,80,80,0.15);
+}
+
+/* ─── Tree Toggle (chevron beside folder) ─── */
+.note-tree-toggle {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.note-tree-toggle:hover {
+  background: rgba(var(--accent-warm-rgb), 0.16);
+  color: var(--accent-warm);
+}
+
+.note-tree-toggle svg {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.note-tree-toggle.expanded {
+  color: var(--accent-warm);
+}
+
+.note-tree-toggle.expanded svg {
+  transform: rotate(90deg);
+}
+
+/* ─── Expanded children (notes/folders inside an open folder) ─── */
+.note-tree-children {
+  margin: 4px 0 6px 22px;
+  padding: 4px 0 4px 12px;
+  /* Soft warm gradient line on the left to suggest hierarchy without a hard rule */
+  background: linear-gradient(
+    180deg,
+    rgba(var(--accent-warm-rgb), 0.28) 0%,
+    rgba(var(--accent-warm-rgb), 0.10) 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 2px 100%;
+  background-position: 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: noteTreeExpand 0.25s ease both;
+}
+
+@keyframes noteTreeExpand {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.note-tree-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--text-secondary);
+}
+
+.note-tree-item:hover {
+  background: rgba(var(--accent-primary-rgb), 0.08);
+  color: var(--text-primary);
+}
+
+/* ─── Notion-style integrated page icon ───
+   Icon lives INSIDE the editor header above the title. When no icon is set,
+   the slot collapses to zero height (no empty band). A subtle "+ Add icon"
+   button only fades in on header hover — matches Notion's reveal-on-hover
+   pattern so the header stays compact until you need to add an icon. */
+
+.notes-editor-panel .notes-editor-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 12px 18px;
+  gap: 6px;
+  border-bottom: 1px solid rgba(255,180,200,0.06);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  background: rgba(255,107,157,0.04);
+}
+
+.notes-editor-panel .nt-header-icon-slot {
+  min-height: 0;
+  display: flex;
+  align-items: flex-end;
+  transition: min-height 0.18s ease;
+}
+/* When an icon IS set, reserve space for the big emoji */
+.notes-editor-panel .nt-header-icon-slot.has-icon {
+  min-height: 64px;
+  margin-bottom: -4px;  /* pull the title closer to the emoji, like Notion */
+}
+
+/* The big emoji button */
+.notes-editor-panel .nt-page-icon {
+  border: none;
+  background: transparent;
+  padding: 2px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s, transform 0.1s;
+}
+.notes-editor-panel .nt-page-icon:hover {
+  background: rgba(var(--accent-primary-rgb), 0.08);
+}
+.notes-editor-panel .nt-page-icon:active { transform: scale(0.96); }
+.notes-editor-panel .nt-page-icon-emoji {
+  font-size: 56px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  filter: none;  /* keep emoji colors vivid */
+}
+
+/* The "+ Add icon" pill. Hidden entirely when slot has an icon OR when the
+   header isn't hovered. This way the empty state stays visually quiet but
+   the affordance is discoverable. */
+.notes-editor-panel .nt-page-icon-add {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px dashed rgba(var(--accent-primary-rgb), 0.25);
+  color: var(--text-muted);
+  font-family: 'Outfit', sans-serif;
+  font-size: 10.5px;
+  font-weight: 400;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.18s, transform 0.18s, color 0.18s, background 0.15s, border-color 0.15s;
+}
+.notes-editor-panel .nt-page-icon-add svg {
+  stroke: currentColor;
+  fill: none;
+  flex-shrink: 0;
+}
+/* Reveal only when slot is in can-add state AND the header is hovered */
+.notes-editor-panel .nt-header-icon-slot.can-add .nt-page-icon-add {
+  display: inline-flex;
+}
+.notes-editor-panel .notes-editor-header:hover .nt-header-icon-slot.can-add .nt-page-icon-add {
+  opacity: 0.85;
+  transform: translateY(0);
+}
+.notes-editor-panel .nt-page-icon-add:hover {
+  opacity: 1 !important;
+  color: var(--accent-pink);
+  background: rgba(var(--accent-primary-rgb), 0.1);
+  border-color: rgba(var(--accent-primary-rgb), 0.45);
+  border-style: solid;
+}
+
+/* The bottom row of the header: title + actions */
+.notes-editor-panel .nt-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.notes-editor-panel .nt-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ─── Emoji picker popover (glass-morphism) ─── */
+.nt-emoji-picker {
+  position: fixed;
+  width: 360px;
+  max-height: 360px;
+  padding: 10px;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  background: rgba(30, 12, 20, 0.96);
+  backdrop-filter: var(--glass-sub-blur);
+  -webkit-backdrop-filter: var(--glass-sub-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.4);
+  animation: ntEmojiPickerIn 0.16s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+@keyframes ntEmojiPickerIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.nt-emoji-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.nt-emoji-search {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.nt-emoji-search::placeholder { color: var(--text-muted); }
+.nt-emoji-search:focus {
+  border-color: rgba(var(--accent-primary-rgb), 0.4);
+  background: rgba(var(--accent-primary-rgb), 0.06);
+}
+.nt-emoji-random,
+.nt-emoji-remove {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.nt-emoji-random:hover { background: rgba(var(--accent-primary-rgb), 0.12); border-color: rgba(var(--accent-primary-rgb), 0.3); }
+.nt-emoji-remove:hover {
+  background: rgba(255, 80, 80, 0.15);
+  color: var(--accent-error);
+  border-color: rgba(255, 120, 120, 0.3);
+}
+
+.nt-emoji-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--accent-primary-rgb), 0.3) transparent;
+}
+.nt-emoji-body::-webkit-scrollbar { width: 4px; }
+.nt-emoji-body::-webkit-scrollbar-thumb {
+  background: rgba(var(--accent-primary-rgb), 0.3);
+  border-radius: 2px;
+}
+
+.nt-emoji-group-label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 9.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  padding: 8px 4px 4px;
+}
+.nt-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  padding: 0 2px 4px;
+}
+.nt-emoji-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, transform 0.1s;
+  padding: 0;
+}
+.nt-emoji-cell:hover {
+  background: rgba(var(--accent-primary-rgb), 0.16);
+  transform: scale(1.15);
+}
+.nt-emoji-cell:active { transform: scale(1.05); }
+.nt-emoji-empty {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+/* ─── Notion-style unified note row (`.nt-row`) ───
+   One visual treatment for every note at every depth. Indentation is driven
+   by `--nt-depth` on each row, applied via `padding-left`. The sidebar DOM
+   is flat — sibling rows with different depth values — so no nested wrappers
+   compound margin and layout never breaks at deep nesting.
+
+   Structure:
+     .nt-row[style="--nt-depth:N"]
+       ├── .nt-toggle  (or .nt-toggle-empty spacer if no children)
+       ├── .nt-icon
+       ├── .nt-title
+       └── .nt-delete                                                      */
+
+.notes-list-panel .nt-row {
+  --nt-depth: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px 6px calc(8px + var(--nt-depth) * 16px);
+  border-radius: 6px;
+  cursor: pointer;
+  min-width: 0;
+  position: relative;
+  border-left: 2px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+.notes-list-panel .nt-row:hover {
+  background: rgba(var(--accent-primary-rgb), 0.08);
+}
+.notes-list-panel .nt-row.active {
+  background: rgba(var(--accent-primary-rgb), 0.14);
+  border-left-color: var(--accent-pink);
+}
+
+/* L-shape elbow connector — the vertical line comes down from the parent's
+   chevron column and curves right to point at the child's icon. Drawn via
+   the row's ::before using two borders + a border-radius for the curve.
+   `::after` is the continuation segment below the elbow that chains to the
+   next sibling — suppressed on `.nt-last-child` so the elbow terminates
+   cleanly at the last child of each parent. */
+.notes-list-panel .nt-row:not([data-depth="0"])::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(12px + (var(--nt-depth) - 1) * 16px);
+  width: 11px;
+  height: 50%;
+  border-left: 1px solid rgba(var(--accent-primary-rgb), 0.3);
+  border-bottom: 1px solid rgba(var(--accent-primary-rgb), 0.3);
+  border-bottom-left-radius: 7px;
+  pointer-events: none;
+}
+.notes-list-panel .nt-row:not([data-depth="0"]):not(.nt-last-child)::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  bottom: 0;
+  left: calc(12px + (var(--nt-depth) - 1) * 16px);
+  width: 1px;
+  background: rgba(var(--accent-primary-rgb), 0.3);
+  pointer-events: none;
+}
+
+/* Chevron button AND the empty spacer share the same width so rows always
+   align visually regardless of whether they have children. */
+.notes-list-panel .nt-toggle,
+.notes-list-panel .nt-toggle-empty {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.notes-list-panel .nt-toggle {
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.notes-list-panel .nt-toggle:hover {
+  background: rgba(var(--accent-primary-rgb), 0.16);
+  color: var(--accent-pink);
+}
+.notes-list-panel .nt-toggle svg {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.notes-list-panel .nt-toggle.expanded { color: var(--accent-pink); }
+.notes-list-panel .nt-toggle.expanded svg { transform: rotate(90deg); }
+
+.notes-list-panel .nt-icon {
+  flex-shrink: 0;
+  color: var(--accent-pink);
+  opacity: 0.85;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+}
+.notes-list-panel .nt-row.active .nt-icon { opacity: 1; }
+/* Emoji icons are rendered as plain text in the same slot — size/line-height
+   tuned so they visually match the 13px stroke-width:1.8 SVG doc icon. */
+.notes-list-panel .nt-icon-emoji {
+  font-size: 13px;
+  line-height: 1;
+  opacity: 1;  /* emojis carry their own color; don't dim them */
+}
+
+.notes-list-panel .nt-title {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.1px;
+}
+
+.notes-list-panel .nt-delete {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--accent-error);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+.notes-list-panel .nt-row:hover .nt-delete { opacity: 0.6; }
+.notes-list-panel .nt-row.active .nt-delete { opacity: 0.6; }
+.notes-list-panel .nt-delete:hover {
+  opacity: 1;
+  background: rgba(255, 80, 80, 0.15);
+}
+
+/* ─── Editor footer: breadcrumb + "+ Sub-page" action ───
+   Thin status-bar style strip at the bottom of the editor panel. Breadcrumb
+   on the left, action button on the right. Matches the footer chrome pattern
+   — no heavy background, just a subtle top border separating it from content. */
+.notes-editor-panel .nt-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 18px;
+  border-top: 1px solid rgba(255, 180, 200, 0.06);
+  background: rgba(var(--accent-primary-rgb), 0.03);
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+  flex-shrink: 0;
+  min-height: 32px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.notes-editor-panel .nt-footer-crumbs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.notes-editor-panel .nt-footer-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  margin-right: 4px;
+  text-transform: lowercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+.notes-editor-panel .nt-footer .pb-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: color 0.2s, background 0.2s;
+  max-width: 160px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.notes-editor-panel .nt-footer .pb-seg > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.notes-editor-panel .nt-footer .pb-seg:hover {
+  color: var(--accent-pink);
+  background: rgba(var(--accent-primary-rgb), 0.08);
+}
+.notes-editor-panel .nt-footer .pb-seg svg {
+  width: 10px; height: 10px;
+  stroke: var(--accent-pink);
+  fill: none;
+  stroke-width: 2;
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+/* Emoji icon inside a breadcrumb segment — sized to match the SVG slot. */
+.notes-editor-panel .nt-footer .pb-emoji {
+  font-size: 11px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.notes-editor-panel .nt-footer .pb-sep {
+  color: var(--text-muted);
+  opacity: 0.4;
+  padding: 0 1px;
+  flex-shrink: 0;
+}
+.notes-editor-panel .nt-footer .pb-seg.pb-deleted {
+  color: rgba(var(--accent-error-rgb), 0.7);
+  cursor: not-allowed;
+  opacity: 0.65;
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 120, 120, 0.4);
+}
+.notes-editor-panel .nt-footer .pb-seg.pb-deleted svg { stroke: var(--accent-error); }
+
+/* Ellipsis (truncated middle) — click reveals hidden segments. */
+.notes-editor-panel .nt-footer .pb-ellipsis {
+  color: var(--text-muted);
+  padding: 3px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  font-size: 12px;
+  line-height: 1;
+  position: relative;
+  flex-shrink: 0;
+}
+.notes-editor-panel .nt-footer .pb-ellipsis:hover {
+  color: var(--accent-pink);
+  background: rgba(var(--accent-primary-rgb), 0.08);
+}
+
+/* "+ Sub-page" button on the right side of the footer */
+.notes-editor-panel .nt-footer-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.22);
+  background: rgba(var(--accent-primary-rgb), 0.08);
+  color: var(--accent-pink);
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.notes-editor-panel .nt-footer-add:hover {
+  background: rgba(var(--accent-primary-rgb), 0.16);
+  border-color: rgba(var(--accent-primary-rgb), 0.35);
+}
+.notes-editor-panel .nt-footer-add svg {
+  stroke: currentColor;
+  fill: none;
+  flex-shrink: 0;
+}
+
+/* NB: This menu sits inside the editor `.glass-card` ancestor, so we cannot
+   use backdrop-filter here — nested filters would either render incorrectly
+   in Chromium or break the parent's own backdrop. We use a fully-opaque
+   background so the menu is still legible. See CLAUDE.md for the rule. */
+.pb-ellipsis-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  background: #1f0a14;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px var(--glass-shadow);
+  padding: 6px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: var(--z-modal);
+}
+.pb-ellipsis-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: normal;
+}
+.pb-ellipsis-item:hover {
+  background: rgba(var(--accent-primary-rgb), 0.12);
+  color: var(--accent-pink);
+}
+
+/* ─── Broken pageLink state (deleted target) ─── */
+.notes-editor-panel .ProseMirror .tt-page-link.broken {
+  background: rgba(255, 80, 80, 0.06);
+  border-color: rgba(255, 120, 120, 0.25);
+  cursor: not-allowed;
+}
+.notes-editor-panel .ProseMirror .tt-page-link.broken:hover {
+  background: rgba(255, 80, 80, 0.10);
+  border-color: rgba(255, 120, 120, 0.35);
+}
+.notes-editor-panel .ProseMirror .tt-page-link.broken .tt-page-link-icon {
+  background: linear-gradient(135deg, rgba(255, 120, 120, 0.25), rgba(255, 120, 120, 0.08));
+  border-color: rgba(255, 120, 120, 0.30);
+}
+.notes-editor-panel .ProseMirror .tt-page-link.broken .tt-page-link-icon::before {
+  background: var(--accent-error);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E");
+}
+.notes-editor-panel .ProseMirror .tt-page-link.broken .tt-page-link-title {
+  color: rgba(var(--accent-error-rgb), 0.7);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 120, 120, 0.5);
+}
+.notes-editor-panel .ProseMirror .tt-page-link.broken .tt-page-link-chevron { color: var(--accent-error); }
+.notes-editor-panel .ProseMirror .tt-page-link.broken:hover .tt-page-link-chevron { transform: none; }
+
+/* ─── Cascade-delete dialog ─── */
+.nested-cascade-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: nestedBackdropFade 0.18s ease both;
+}
+@keyframes nestedBackdropFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+/* Dialog has NO backdrop-filter of its own — the backdrop above already
+   blurs everything beneath. Stacking another filter inside the backdrop
+   would either flicker or break compositing entirely on some Chromium
+   builds. Solid background keeps the modal legible. */
+.nested-cascade-dialog {
+  width: min(92vw, 480px);
+  padding: 28px 32px;
+  border-radius: 18px;
+  background: #1f0a14;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  animation: nestedDialogIn 0.22s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+@keyframes nestedDialogIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.nested-cascade-dialog h4 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.nested-cascade-dialog p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 300;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+.nested-cascade-dialog p strong {
+  color: var(--accent-pink);
+  font-weight: 500;
+}
+.nested-cascade-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.nested-btn {
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.nested-btn:hover { background: rgba(255, 255, 255, 0.04); }
+.nested-btn-keep {
+  background: rgba(var(--accent-primary-rgb), 0.14);
+  color: var(--accent-pink);
+  border-color: rgba(var(--accent-primary-rgb), 0.3);
+}
+.nested-btn-keep:hover { background: rgba(var(--accent-primary-rgb), 0.22); }
+.nested-btn-cascade {
+  background: rgba(255, 80, 80, 0.16);
+  color: var(--accent-error);
+  border-color: rgba(255, 120, 120, 0.32);
+}
+.nested-btn-cascade:hover { background: rgba(255, 80, 80, 0.26); }
+.nested-btn-cascade:focus-visible {
+  outline: 2px solid rgba(255, 120, 120, 0.55);
+  outline-offset: 2px;
+}
+
+/* ─── Notes Breadcrumb ─── */
+.notes-breadcrumb {
+  display: flex; align-items: center;
+  padding: 0 4px 8px;
+  font-size: 11px;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.notes-bc-item {
+  color: var(--text-muted);
+  cursor: pointer;
+  font-weight: 300;
+  transition: color 0.2s;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.notes-bc-item:hover:not(.current) {
+  color: var(--text-primary);
+  background: rgba(var(--accent-primary-rgb), 0.08);
+}
+
+.notes-bc-item.current {
+  color: var(--text-secondary);
+  font-weight: 400;
+  cursor: default;
+}
+
+/* ─── Empty State ─── */
+.notes-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px; color: var(--text-muted);
+}
+
+.notes-empty svg {
+  width: 48px; height: 48px;
+  stroke: var(--accent-blush); stroke-width: 1;
+  opacity: 0.4;
+}
+
+.notes-empty p {
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px; font-weight: 300;
+}
