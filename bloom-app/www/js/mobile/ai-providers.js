@@ -48,11 +48,17 @@
   };
 
   const ACTIVE_STORE_KEY = 'ai.activeProvider';
+  // Short system prompt — the tools' own descriptions carry most of the
+  // "how to behave" signal. We just nudge the model toward using them
+  // instead of replying "I can't do that" like it did before tools
+  // existed on mobile. The Claude/Gemini/OpenRouter providers all accept
+  // this same string verbatim.
   const SYSTEM_PROMPT =
-    'You are Bloom, a warm, helpful personal productivity assistant. ' +
-    "Keep answers concise and friendly. If the user asks about features that aren't " +
-    'available on mobile yet (calendar sync, notes, study decks), briefly say so ' +
-    "and offer what help you can without the data.";
+    'You are Bloom, a warm, helpful personal productivity assistant running on the user\'s Android phone. ' +
+    'You have TOOLS for creating / updating / deleting calendar events, notes, and flashcard decks, ' +
+    'and for starting Pomodoro focus sessions. When the user asks you to do any of these things, ' +
+    "USE THE TOOLS — don't just describe what the user could do. Confirm what you did in a short friendly reply. " +
+    'Keep answers concise. If a tool call fails, say so honestly and suggest what to try.';
 
   // ── Store helpers ───────────────────────────────────────────────
   async function _get(key) {
@@ -133,7 +139,14 @@
   function _asClaudeMessages(messages) {
     return messages
       .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({ role: m.role, content: _extractText(m.content) }));
+      .map(m => {
+        // Preserve structured content arrays (e.g. [tool_use, text] on
+        // assistant turns, [tool_result, ...] on user turns) — those are
+        // what the tool-loop pushes back in and they must be re-sent as
+        // blocks, not flattened to a string.
+        if (Array.isArray(m.content)) return { role: m.role, content: m.content };
+        return { role: m.role, content: _extractText(m.content) };
+      });
   }
 
   function _asOpenAIMessages(messages) {
@@ -191,100 +204,401 @@
   }
 
   // ── Provider-specific streamers ────────────────────────────────
+
+  /**
+   * Claude streaming WITH tool-use loop.
+   *
+   * Stream cycle:
+   *   1. Request with `tools` array → SSE frames arrive
+   *   2. Parse frames:
+   *      - content_block_start (text) → open a text block buffer
+   *      - content_block_delta (text_delta) → emit stream-delta + append
+   *      - content_block_start (tool_use) → open a tool_use block,
+   *        remember id + name, start buffering partial JSON
+   *      - content_block_delta (input_json_delta) → append to JSON buffer
+   *      - content_block_stop → finalize the open block
+   *      - message_delta (stop_reason) → remember stop reason
+   *   3. If stop_reason === 'tool_use':
+   *      a. Run each tool via _bloomAITools.executeTool
+   *      b. Append assistant turn (with blocks) + user turn (tool_results)
+   *         to the running messages array
+   *      c. Re-request and loop
+   *   4. Else → emit stream-done
+   *
+   * Hard cap at 8 iterations to prevent runaway tool loops on a bad model
+   * response. The desktop implementation doesn't cap explicitly but it
+   * runs inside an Electron main process — on a phone the cost of a
+   * runaway loop is battery + data.
+   */
   async function streamClaude({ messages, conversationId, signal, emit }) {
     const key = await getKey('claude');
     if (!key) throw new Error('Claude API key not configured. Add one in Settings.');
+    const toolsRegistry = window._bloomAITools;
+    const tools = toolsRegistry ? toolsRegistry.getAllTools() : [];
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: PROVIDERS.claude.model,
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: _asClaudeMessages(messages),
-        stream: true,
-      }),
-    });
+    // Clone the passed-in array — we mutate it across tool loops.
+    let workingMessages = _asClaudeMessages(messages);
+    const MAX_ITER = 8;
 
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`Claude ${res.status}: ${txt.slice(0, 400) || res.statusText}`);
+    for (let iter = 0; iter < MAX_ITER; iter++) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: PROVIDERS.claude.model,
+          max_tokens: 4096,
+          system: SYSTEM_PROMPT,
+          messages: workingMessages,
+          tools: tools.length ? tools : undefined,
+          stream: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`Claude ${res.status}: ${txt.slice(0, 400) || res.statusText}`);
+      }
+
+      // Per-iteration state. Claude's streaming protocol emits blocks by
+      // index (0..n) — we keep a sparse array of content blocks under
+      // construction. On message_stop we'll know the full assistant turn.
+      const blocks = []; // [{ type: 'text'|'tool_use', text?, id?, name?, _jsonBuf? }]
+      let stopReason = null;
+
+      await _consumeSSE(res.body, signal, (evt) => {
+        switch (evt.type) {
+          case 'content_block_start': {
+            const idx = evt.index;
+            const cb = evt.content_block || {};
+            if (cb.type === 'tool_use') {
+              blocks[idx] = { type: 'tool_use', id: cb.id, name: cb.name, input: {}, _jsonBuf: '' };
+              emit('claude:tool-use', { toolName: cb.name, conversationId });
+            } else if (cb.type === 'text') {
+              blocks[idx] = { type: 'text', text: '' };
+            } else {
+              blocks[idx] = { type: cb.type || 'unknown' };
+            }
+            break;
+          }
+          case 'content_block_delta': {
+            const idx = evt.index;
+            const b = blocks[idx];
+            if (!b) break;
+            if (evt.delta?.type === 'text_delta') {
+              b.text = (b.text || '') + (evt.delta.text || '');
+              emit('claude:stream-delta', { text: evt.delta.text, conversationId });
+            } else if (evt.delta?.type === 'input_json_delta') {
+              b._jsonBuf = (b._jsonBuf || '') + (evt.delta.partial_json || '');
+            }
+            break;
+          }
+          case 'content_block_stop': {
+            const b = blocks[evt.index];
+            if (b?.type === 'tool_use') {
+              // Parse the accumulated JSON now that the block is closed.
+              try {
+                b.input = b._jsonBuf ? JSON.parse(b._jsonBuf) : {};
+              } catch {
+                b.input = {};
+              }
+              delete b._jsonBuf;
+            }
+            break;
+          }
+          case 'message_delta':
+            if (evt.delta?.stop_reason) stopReason = evt.delta.stop_reason;
+            break;
+          default:
+            /* message_start / message_stop / ping / error — ignore */
+        }
+      });
+
+      // No tool use: we're done.
+      if (stopReason !== 'tool_use') {
+        emit('claude:stream-done', { conversationId });
+        return;
+      }
+
+      // Tool use: append assistant turn with all blocks, then run tools
+      // and append the tool_result user turn.
+      const assistantContent = blocks.filter(Boolean).map(b => {
+        if (b.type === 'tool_use') {
+          return { type: 'tool_use', id: b.id, name: b.name, input: b.input || {} };
+        }
+        if (b.type === 'text') {
+          return { type: 'text', text: b.text || '' };
+        }
+        return null;
+      }).filter(Boolean);
+
+      workingMessages.push({ role: 'assistant', content: assistantContent });
+
+      const toolResults = [];
+      for (const b of blocks) {
+        if (!b || b.type !== 'tool_use') continue;
+        const out = toolsRegistry
+          ? await toolsRegistry.executeTool(b.name, b.input || {})
+          : { error: 'Tool registry not loaded' };
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: b.id,
+          // Tool results must be strings for Claude. JSON-stringify objects.
+          content: typeof out === 'string' ? out : JSON.stringify(out),
+        });
+      }
+      workingMessages.push({ role: 'user', content: toolResults });
+
+      // Loop back — Claude will produce a follow-up turn incorporating
+      // the tool results (usually a short "here's what I did" reply).
     }
 
-    await _consumeSSE(res.body, signal, (evt) => {
-      if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
-        emit('claude:stream-delta', { text: evt.delta.text, conversationId });
-      }
-    });
+    // Fell off the end of the iteration cap. Treat as done with a
+    // diagnostic so the sheet closes out cleanly instead of hanging.
+    emit('claude:stream-delta', { text: '\n\n(Hit tool-loop cap — stopping.)', conversationId });
     emit('claude:stream-done', { conversationId });
   }
 
+  /**
+   * Gemini streaming with functionCall loop.
+   *
+   * Differences from Claude/OpenRouter:
+   *   - tools are `{ functionDeclarations: [...] }` with UPPERCASE type names
+   *   - model returns `parts: [{ text }, { functionCall: {name, args} }]`
+   *     — both can appear in the same response
+   *   - tool results are sent back as `{ functionResponse: { name, response } }`
+   *   - role is 'user' for user, 'model' for assistant/tool turns
+   *   - the streamGenerateContent SSE format chunks parts per frame;
+   *     finalizing requires watching for role+parts rather than an explicit
+   *     stop_reason
+   */
   async function streamGemini({ messages, conversationId, signal, emit }) {
     const key = await getKey('gemini');
     if (!key) throw new Error('Gemini API key not configured. Add one in Settings.');
+    const toolsRegistry = window._bloomAITools;
+    const tools = toolsRegistry ? toolsRegistry.getAllToolsForGemini() : [];
 
     const url =
       `https://generativelanguage.googleapis.com/v1beta/models/${PROVIDERS.gemini.model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: _asGeminiContents(messages),
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      }),
-    });
+    let contents = _asGeminiContents(messages);
+    const MAX_ITER = 8;
 
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`Gemini ${res.status}: ${txt.slice(0, 400) || res.statusText}`);
+    for (let iter = 0; iter < MAX_ITER; iter++) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+      const body = {
+        contents,
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      };
+      if (tools.length) body.tools = tools;
+
+      const res = await fetch(url, {
+        method: 'POST',
+        signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`Gemini ${res.status}: ${txt.slice(0, 400) || res.statusText}`);
+      }
+
+      const functionCalls = [];
+      const modelParts = [];
+
+      await _consumeSSE(res.body, signal, (evt) => {
+        const parts = evt?.candidates?.[0]?.content?.parts;
+        if (!Array.isArray(parts)) return;
+        for (const p of parts) {
+          if (p.text) {
+            modelParts.push({ text: p.text });
+            emit('claude:stream-delta', { text: p.text, conversationId });
+          } else if (p.functionCall) {
+            const call = { name: p.functionCall.name, args: p.functionCall.args || {} };
+            functionCalls.push(call);
+            modelParts.push({ functionCall: call });
+            emit('claude:tool-use', { toolName: call.name, conversationId });
+          }
+        }
+      });
+
+      if (!functionCalls.length) {
+        emit('claude:stream-done', { conversationId });
+        return;
+      }
+
+      // Append model turn with all parts (text + functionCalls).
+      contents.push({ role: 'model', parts: modelParts });
+
+      // Execute and append functionResponses as a single user turn.
+      const responseParts = [];
+      for (const fc of functionCalls) {
+        const out = toolsRegistry
+          ? await toolsRegistry.executeTool(fc.name, fc.args || {})
+          : { error: 'Tool registry not loaded' };
+        responseParts.push({
+          functionResponse: {
+            name: fc.name,
+            // Gemini expects `response` to be an object, not a string.
+            response: typeof out === 'object' && out !== null ? out : { result: out },
+          }
+        });
+      }
+      contents.push({ role: 'user', parts: responseParts });
     }
 
-    await _consumeSSE(res.body, signal, (evt) => {
-      const text = evt?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) emit('claude:stream-delta', { text, conversationId });
-    });
+    emit('claude:stream-delta', { text: '\n\n(Hit tool-loop cap — stopping.)', conversationId });
     emit('claude:stream-done', { conversationId });
   }
 
+  /**
+   * OpenRouter streaming with tool-calling loop (OpenAI-compatible).
+   *
+   * Differences from Claude:
+   *   - tools is [{type:'function', function:{name, description, parameters}}]
+   *   - tool_calls stream as an array under `delta.tool_calls`, with each
+   *     tool_call split into fragments addressed by `index`
+   *   - finish_reason === 'tool_calls' (not 'tool_use') signals a tool turn
+   *   - follow-up turn is the assistant message with { tool_calls: [...] }
+   *     plus one `{ role: 'tool', tool_call_id, content }` per result
+   *   - not every OpenRouter-listed model supports tool calling. If the
+   *     API returns 400 with a tool-related error, we surface a friendly
+   *     hint that the user should pick a different model.
+   */
   async function streamOpenRouter({ messages, conversationId, signal, emit }) {
     const key = await getKey('openrouter');
     if (!key) throw new Error('OpenRouter API key not configured. Add one in Settings.');
     const model = await getOpenRouterModel();
+    const toolsRegistry = window._bloomAITools;
+    const tools = toolsRegistry ? toolsRegistry.getAllToolsForOpenAI() : [];
 
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      signal,
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://github.com/JuanDiaz5673/BloomAPK',
-        'X-Title': 'Bloom Mobile',
-      },
-      body: JSON.stringify({
+    let workingMessages = _asOpenAIMessages(messages);
+    const MAX_ITER = 8;
+
+    for (let iter = 0; iter < MAX_ITER; iter++) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+      const body = {
         model,
-        messages: _asOpenAIMessages(messages),
+        messages: workingMessages,
         stream: true,
-      }),
-    });
+      };
+      if (tools.length) body.tools = tools;
 
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`OpenRouter ${res.status}: ${txt.slice(0, 400) || res.statusText}`);
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        signal,
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://github.com/JuanDiaz5673/BloomAPK',
+          'X-Title': 'Bloom Mobile',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        // Some OR-listed models don't support tools — retry once without
+        // them. The user loses tool-use, but the message still streams.
+        if (tools.length && (res.status === 400 || res.status === 404) && /tool/i.test(txt)) {
+          const fallback = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            signal,
+            headers: {
+              Authorization: `Bearer ${key}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://github.com/JuanDiaz5673/BloomAPK',
+              'X-Title': 'Bloom Mobile',
+            },
+            body: JSON.stringify({ model, messages: workingMessages, stream: true }),
+          });
+          if (fallback.ok) {
+            await _consumeSSE(fallback.body, signal, (evt) => {
+              const delta = evt?.choices?.[0]?.delta;
+              if (delta?.content) emit('claude:stream-delta', { text: delta.content, conversationId });
+            });
+            emit('claude:stream-delta', {
+              text: '\n\n_(This OpenRouter model doesn\'t support tools — pick Claude or Gemini for calendar/notes/flashcards.)_',
+              conversationId,
+            });
+            emit('claude:stream-done', { conversationId });
+            return;
+          }
+        }
+        throw new Error(`OpenRouter ${res.status}: ${txt.slice(0, 400) || res.statusText}`);
+      }
+
+      let textBuf = '';
+      const toolCalls = []; // [{ id, name, argsBuf }] accumulated by index
+      let finishReason = null;
+
+      await _consumeSSE(res.body, signal, (evt) => {
+        const choice = evt?.choices?.[0];
+        if (!choice) return;
+        const delta = choice.delta || {};
+        if (typeof delta.content === 'string' && delta.content.length) {
+          textBuf += delta.content;
+          emit('claude:stream-delta', { text: delta.content, conversationId });
+        }
+        if (Array.isArray(delta.tool_calls)) {
+          for (const tc of delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            const slot = toolCalls[idx] || (toolCalls[idx] = { id: '', name: '', argsBuf: '' });
+            if (tc.id) slot.id = tc.id;
+            if (tc.function?.name) {
+              const wasEmpty = !slot.name;
+              slot.name = (slot.name || '') + tc.function.name;
+              if (wasEmpty && slot.name) emit('claude:tool-use', { toolName: slot.name, conversationId });
+            }
+            if (tc.function?.arguments) slot.argsBuf += tc.function.arguments;
+          }
+        }
+        if (choice.finish_reason) finishReason = choice.finish_reason;
+      });
+
+      if (finishReason !== 'tool_calls' || !toolCalls.length) {
+        emit('claude:stream-done', { conversationId });
+        return;
+      }
+
+      // Append the assistant turn (with tool_calls) to history.
+      workingMessages.push({
+        role: 'assistant',
+        content: textBuf || null,
+        tool_calls: toolCalls.map(tc => ({
+          id: tc.id,
+          type: 'function',
+          function: { name: tc.name, arguments: tc.argsBuf || '{}' },
+        })),
+      });
+
+      // Execute each tool, append one `{role:'tool'}` message per result.
+      for (const tc of toolCalls) {
+        let input = {};
+        try { input = tc.argsBuf ? JSON.parse(tc.argsBuf) : {}; } catch { /* ignore */ }
+        const out = toolsRegistry
+          ? await toolsRegistry.executeTool(tc.name, input)
+          : { error: 'Tool registry not loaded' };
+        workingMessages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: typeof out === 'string' ? out : JSON.stringify(out),
+        });
+      }
+      // Loop back — model usually produces a short confirmation turn.
     }
 
-    await _consumeSSE(res.body, signal, (evt) => {
-      const delta = evt?.choices?.[0]?.delta;
-      if (delta?.content) emit('claude:stream-delta', { text: delta.content, conversationId });
-    });
+    emit('claude:stream-delta', { text: '\n\n(Hit tool-loop cap — stopping.)', conversationId });
     emit('claude:stream-done', { conversationId });
   }
 

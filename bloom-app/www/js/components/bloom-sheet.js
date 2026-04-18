@@ -103,6 +103,13 @@ const BloomSheet = (() => {
     if (window.electronAPI?.ai?.onStreamError) {
       _cleanupFns.push(window.electronAPI.ai.onStreamError(_onError));
     }
+    // Tool-use indicators — fired when the model decides to call a
+    // tool. We show a pulsing "Creating event…" chip below the
+    // assistant's in-progress bubble, cleared on the next text delta
+    // or when the stream completes.
+    if (window.electronAPI?.ai?.onToolUse) {
+      _cleanupFns.push(window.electronAPI.ai.onToolUse(_onToolUse));
+    }
   }
 
   function open() {
@@ -281,11 +288,23 @@ const BloomSheet = (() => {
     _messagesEl.scrollTop = _messagesEl.scrollHeight;
   }
 
+  // Tool-in-progress chip for the active assistant turn. One at a time:
+  // a new tool-use replaces the previous chip (mirrors desktop chat.js).
+  let _toolChip = null;
+
+  function _clearToolChip() {
+    if (_toolChip && _toolChip.parentNode) _toolChip.parentNode.removeChild(_toolChip);
+    _toolChip = null;
+  }
+
   function _onDelta(data) {
     if (!_isOpen) return;
     if (data?.conversationId !== window._activeConversationId) return;
     const chunk = data.text || '';
     if (!chunk) return;
+    // Any real text means the tool-use phase is over for now — clear
+    // the pulsing chip so the reply streams in cleanly.
+    _clearToolChip();
     if (!_currentAssistantBubble) {
       _currentAssistantBubble = _appendBubble('assistant', '');
       _assistantHasContent = false;
@@ -298,7 +317,27 @@ const BloomSheet = (() => {
     _scrollToBottom();
   }
 
+  function _onToolUse(data) {
+    if (!_isOpen) return;
+    if (data?.conversationId && data.conversationId !== window._activeConversationId) return;
+    const toolName = data?.toolName || '';
+    const labels = window._bloomAITools?.TOOL_LABELS || {};
+    const label = labels[toolName] || 'Thinking';
+    // Clear any prior chip so only the latest action shows.
+    _clearToolChip();
+    // Empty state gets out of the way as soon as something happens.
+    const empty = _messagesEl.querySelector('.bloom-sheet-empty');
+    if (empty) empty.remove();
+    _toolChip = document.createElement('div');
+    _toolChip.className = 'bloom-sheet-tool-chip';
+    _toolChip.innerHTML = `<span class="bloom-sheet-tool-label"></span><span class="bloom-sheet-tool-pulse"><span></span><span></span><span></span></span>`;
+    _toolChip.querySelector('.bloom-sheet-tool-label').textContent = label;
+    _messagesEl.appendChild(_toolChip);
+    _scrollToBottom();
+  }
+
   function _onDone() {
+    _clearToolChip();
     // Commit the streamed assistant reply to history so it carries into
     // the next turn's prompt. Read the final text from the bubble
     // itself — avoids maintaining a parallel accumulator.
@@ -313,6 +352,7 @@ const BloomSheet = (() => {
   }
 
   function _onError(data) {
+    _clearToolChip();
     _appendBubble('assistant', `Error: ${data?.error || 'unknown'}`);
     _currentAssistantBubble = null;
     _assistantHasContent = false;
