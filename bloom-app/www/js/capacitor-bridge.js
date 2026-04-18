@@ -263,11 +263,11 @@
         _aiAbortCtrl = null;
         return { success: true };
       },
-      // Generate a quick greeting — desktop runs a tiny Claude call
-      // that reads user profile. Mobile just returns null and lets
-      // app.js use its canned fallback until we add greeting
-      // generation properly.
-      generateGreeting: async () => null,
+      // Generate a time-aware greeting via the active provider.
+      // Returns { title, subtitle, bloom } or null if no key is set /
+      // the request fails — home.js caches null as 'failed' and keeps
+      // the fallback strings for the session.
+      generateGreeting: async () => window._bloomAI?.generateGreeting() ?? null,
       listConversations: async () =>
         Array.from(_conversations.values())
           .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -300,7 +300,7 @@
       getApiKeyPreview: async () => window._bloomAI?.getKeyPreview('claude') ?? '',
       streamChat: (...args) => api.ai.streamChat(...args),
       stopStream: () => api.ai.stopStream(),
-      generateGreeting: async () => null,
+      generateGreeting: async () => window._bloomAI?.generateGreeting() ?? null,
       listConversations: () => api.ai.listConversations(),
       getConversation: (id) => api.ai.getConversation(id),
       deleteConversation: (id) => api.ai.deleteConversation(id),

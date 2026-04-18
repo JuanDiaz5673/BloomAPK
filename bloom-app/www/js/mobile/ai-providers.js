@@ -328,6 +328,132 @@
     return false;
   }
 
+  // ── Greeting generation ────────────────────────────────────────
+  // Ports desktop claude-api/gemini-api's generateGreeting() onto
+  // whichever provider is active + has a key. Returns
+  // { title, subtitle, bloom } parsed from the model's JSON output,
+  // or null if no key is set / request fails — mirrors desktop so
+  // home.js's cache-on-null behavior still works.
+  const GREETING_MAX_TOKENS = 200;
+
+  function _greetingPrompt(firstName) {
+    const now = new Date();
+    const hour = now.getHours();
+    const timeOfDay = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+    const day = now.toLocaleDateString('en-US', { weekday: 'long' });
+    const fullDate = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const nameLine = firstName
+      ? `The user's name is ${firstName} — greet them by name when natural.`
+      : `The user has not shared their name — keep the greeting generic. Do NOT invent a name.`;
+    return `Generate a dashboard greeting.
+
+${nameLine}
+
+IMPORTANT — today is exactly: ${fullDate}, ${timeOfDay}. It is ${day}. Use this accurately — if it's Monday, reference the start of the week. If Friday, reference the weekend coming. Never say "wrap up the week" on a Monday.
+
+Return ONLY a JSON object with these 3 fields:
+- "title": A short welcome headline (3-6 words, creative — motivational, playful, punny, or warm. Should feel relevant to the day/time).
+- "subtitle": A fun fact, inspiring quote, light joke, or productivity tip — 1-2 sentences. Be creative and different every time.
+- "bloom": A short bubbly greeting from Bloom the AI assistant (1 sentence, use an emoji, be time-aware).
+
+No markdown, no code fences — just the raw JSON object.`;
+  }
+
+  function _parseGreeting(raw) {
+    if (!raw) return null;
+    // Models occasionally wrap JSON in ```json fences despite the prompt.
+    const stripped = String(raw).replace(/```json\s*|\s*```/g, '').trim();
+    // Pull out the first {...} blob to be resilient to stray prose.
+    const match = stripped.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      const j = JSON.parse(match[0]);
+      if (!j || typeof j !== 'object') return null;
+      return {
+        title: typeof j.title === 'string' ? j.title : null,
+        subtitle: typeof j.subtitle === 'string' ? j.subtitle : null,
+        bloom: typeof j.bloom === 'string' ? j.bloom : null,
+      };
+    } catch { return null; }
+  }
+
+  async function _greetingViaClaude(prompt) {
+    const key = await getKey('claude');
+    if (!key) return null;
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: PROVIDERS.claude.model,
+        max_tokens: GREETING_MAX_TOKENS,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j?.content?.[0]?.text || null;
+  }
+
+  async function _greetingViaGemini(prompt) {
+    const key = await getKey('gemini');
+    if (!key) return null;
+    // Non-streaming one-shot endpoint (no :streamGenerateContent).
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${PROVIDERS.gemini.model}:generateContent?key=${encodeURIComponent(key)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: GREETING_MAX_TOKENS, responseMimeType: 'application/json' },
+      }),
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  }
+
+  async function _greetingViaOpenRouter(prompt) {
+    const key = await getKey('openrouter');
+    if (!key) return null;
+    const model = (await getOpenRouterModel()) || PROVIDERS.openrouter.defaultModel;
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        max_tokens: GREETING_MAX_TOKENS,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j?.choices?.[0]?.message?.content || null;
+  }
+
+  async function generateGreeting() {
+    try {
+      const provider = await getActive();
+      if (!(await hasKey(provider))) return null;
+      let firstName = null;
+      try { firstName = await window.electronAPI?.store?.get('user.firstName'); } catch {}
+      const prompt = _greetingPrompt(firstName);
+      const raw =
+        provider === 'claude' ? await _greetingViaClaude(prompt) :
+        provider === 'gemini' ? await _greetingViaGemini(prompt) :
+        provider === 'openrouter' ? await _greetingViaOpenRouter(prompt) :
+        null;
+      return _parseGreeting(raw);
+    } catch (err) {
+      console.warn('[ai] generateGreeting failed:', err?.message || err);
+      return null;
+    }
+  }
+
   // Expose to bridge.
   window._bloomAI = {
     PROVIDERS,
@@ -337,5 +463,6 @@
     getOpenRouterModel, setOpenRouterModel,
     streamClaude, streamGemini, streamOpenRouter,
     validateKey,
+    generateGreeting,
   };
 })();

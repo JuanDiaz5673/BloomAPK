@@ -1049,6 +1049,60 @@
     overflow-x: hidden;
     max-width: 100vw;
   }
+
+  /* ── Drive file preview — drop Electron-titlebar padding ─────
+     files.css sets .file-preview-header { padding-top: 36px;
+     padding-right: 140px; } to clear the desktop window's traffic-
+     light controls on macOS / drag region. Mobile has no titlebar
+     so that padding just steals visible space and crushes the
+     filename into "dec…" next to the Open button. Also make the
+     header sit as a real row instead of a cropped strip. */
+  .file-preview-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 100;
+  }
+  .file-preview-panel {
+    border-radius: 0 !important;
+  }
+  .file-preview-header {
+    padding: 12px 12px 12px 10px !important;
+    padding-top: calc(10px + env(safe-area-inset-top, 0px)) !important;
+    gap: 10px;
+  }
+  .file-preview-back {
+    padding: 8px 12px !important;
+    min-width: 0 !important;
+    font-size: 12px !important;
+  }
+  .file-preview-title {
+    font-size: 14px !important;
+    padding: 0 !important;
+    min-width: 0;
+  }
+  /* Right-side actions — Open button — keep it visible and tappable.
+     The inline `btn-sm` style sets padding; we just make sure it
+     doesn't get clipped by the removed 140px reservation. */
+  .file-preview-header #preview-open-browser {
+    flex-shrink: 0;
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+  }
+  /* Text previews: tighter side padding on narrow screens so long
+     lines don't force horizontal scroll before wrapping kicks in. */
+  .file-preview-content .preview-zoom-container pre.zoom-target {
+    padding: 14px !important;
+    font-size: 12px !important;
+    line-height: 1.55 !important;
+  }
+  /* PDFs / Docs iframes: leave room at the bottom nav area so the
+     preview doesn't extend under the tabbar (overlay z-index is
+     above the nav; without bottom padding the user loses the last
+     line of content behind the nav). */
+  .file-preview-content iframe {
+    padding-bottom: var(--mobile-safe-bottom);
+    box-sizing: border-box;
+  }
 }
 
 /* ── Smaller phones (≤ 400px) — tighten further ─────────────────── */
