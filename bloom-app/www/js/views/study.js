@@ -1328,7 +1328,7 @@ const StudyView = (() => {
                   </button>
                 </div>
                 <div class="study-flashcard-content">${_escapeHtml(card.front) || '<em style="opacity:0.5">Empty front</em>'}</div>
-                <div class="study-flashcard-hint">Click or press space to flip</div>
+                <div class="study-flashcard-hint">Tap to flip</div>
               </div>
               <div class="study-flashcard-face study-flashcard-back">
                 <div class="study-flashcard-topbar">

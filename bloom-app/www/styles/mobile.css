@@ -547,6 +547,78 @@
     flex-shrink: 0;
   }
 
+  /* ── Flashcard review overlay — strip Electron window-control
+     padding + scale the card up for phone screens ──────────────
+     The desktop overlay reserves 148px on the right for Windows
+     traffic-light controls and 40px on top for the titlebar. On
+     mobile that squished the deck name to "Ne…" because the top
+     bar had only ~100px of usable width for title + 1/2 + 3 icons. */
+  .study-overlay {
+    padding:
+      calc(12px + env(safe-area-inset-top, 0px))
+      12px
+      calc(12px + var(--mobile-safe-bottom))
+      12px !important;
+  }
+  .study-overlay-bar { gap: 8px !important; padding-bottom: 6px; }
+  .study-overlay-meta { gap: 10px !important; flex: 1; min-width: 0; }
+  .study-overlay-title {
+    font-size: 18px !important;
+    /* 1-line ellipsis; now actually has room on mobile */
+  }
+  .study-overlay-progress {
+    font-size: 11px !important;
+    padding: 3px 8px !important;
+  }
+  .study-overlay-actions { gap: 4px !important; }
+  .study-icon-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  /* Stage: tighter side gutters so the card owns the screen width.
+     Keep the prev/next chevrons visible but compact. */
+  .study-flashcard-stage {
+    gap: 6px !important;
+    padding: 8px 0 !important;
+    min-height: 0 !important;
+    grid-template-columns: 36px 1fr 36px !important;
+  }
+  .study-nav-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  /* Card itself: bigger on mobile. Previously it sat at its default
+     360px height but with the 148px-right overlay padding it felt
+     tiny and off-center. Now fills the available viewport less the
+     grade bar + top bar. */
+  .study-flashcard {
+    height: min(62vh, 520px) !important;
+  }
+  .study-flashcard-face {
+    padding: 48px 18px 40px !important;
+  }
+  .study-flashcard-content {
+    font-size: 22px !important;
+    line-height: 1.35;
+    max-width: 100% !important;
+  }
+  .study-flashcard-hint {
+    font-size: 10.5px !important;
+    bottom: 14px !important;
+  }
+
+  /* Grade bar (Again/Hard/Good/Easy) — compact, full-width row */
+  .study-grade-bar {
+    gap: 6px !important;
+    padding: 8px 0 !important;
+  }
+  .study-grade-bar .study-grade-btn {
+    padding: 10px 4px !important;
+    font-size: 12px !important;
+    min-width: 0 !important;
+  }
+
   /* Flashcards sub-page back-bar — stack into 2 rows so the title,
      back btn, sync-chip, and "+ New deck" button don't overlap. */
   .study-backbar {
