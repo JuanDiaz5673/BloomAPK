@@ -906,6 +906,18 @@
     min-height: 0 !important;
     max-height: none !important;
   }
+  /* Cap the list card's height so it doesn't butt up against the
+     bottom nav — leaves a visible bit of wallpaper below the card
+     that matches the spacing pattern of other tabs. The inner
+     .notes-list scrolls inside this height. */
+  .notes-view .notes-list-panel {
+    max-height: calc(100vh - 64px - var(--mobile-safe-bottom) - 24px) !important;
+    overflow: hidden;
+  }
+  .notes-view .notes-list-panel .notes-list {
+    overflow-y: auto;
+    padding-bottom: 16px;
+  }
   /* Default: list visible, editor hidden */
   .notes-view .notes-editor-panel { display: none !important; }
   /* Editing: editor full-screen, list hidden */
