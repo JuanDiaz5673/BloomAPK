@@ -189,6 +189,11 @@ const BloomSheet = (() => {
     //  1. No document-level listener leak across re-mounts.
     //  2. touchmove with `passive:false` can preventDefault while
     //     dragging so the sheet doesn't fight the messages' native scroll.
+    // Declarations ordered so any forward-reference is impossible: the
+    // three handler fns exist before attach/detach reference them.
+    const onMoveMouse = (e) => onMove(e);
+    const onMoveTouch = (e) => { e.preventDefault(); onMove(e); };
+    const onEndOnce = () => { onEnd(); detachDragging(); };
     function attachWhileDragging() {
       document.addEventListener('mousemove', onMoveMouse);
       document.addEventListener('mouseup', onEndOnce);
@@ -203,9 +208,6 @@ const BloomSheet = (() => {
       document.removeEventListener('touchend', onEndOnce);
       document.removeEventListener('touchcancel', onEndOnce);
     }
-    const onMoveMouse = (e) => onMove(e);
-    const onMoveTouch = (e) => { e.preventDefault(); onMove(e); };
-    const onEndOnce = () => { onEnd(); detachDragging(); };
 
     handle.addEventListener('mousedown', (e) => { onStart(e); attachWhileDragging(); });
     handle.addEventListener('touchstart', (e) => { onStart(e); attachWhileDragging(); }, { passive: true });
@@ -216,12 +218,19 @@ const BloomSheet = (() => {
   // mobile sheet's DOM. Real streaming lights up when the bridge's
   // ai.streamChat is replaced with a real implementation.
   let _currentAssistantBubble = null;
-  let _currentAssistantText = '';
-  // In-memory chat history. Previously we scraped bubble textContent each
-  // send, which both (a) lost any markdown/code the assistant streamed
-  // and (b) could pick up stray matching nodes in the page. Track the
-  // canonical role+string pairs here instead.
-  const _history = [];
+  // Does the in-flight assistant bubble actually have content yet?
+  // Read back at _onDone time from the bubble itself instead of
+  // maintaining a parallel string accumulator (which was allocating
+  // the full reply twice: once into the DOM, once into this string).
+  let _assistantHasContent = false;
+  // In-memory chat history, keyed to _historyConvoId. Previously we
+  // scraped bubble textContent each send, which both (a) lost any
+  // markdown/code the assistant streamed and (b) could pick up stray
+  // matching nodes in the page. Track canonical role+string pairs
+  // here, but reset whenever the conversation id changes (or the
+  // sheet closes) so a stale chat doesn't ride into a fresh convo.
+  let _history = [];
+  let _historyConvoId = null;
 
   async function _send() {
     const text = _inputEl.value.trim();
@@ -229,16 +238,28 @@ const BloomSheet = (() => {
     _inputEl.value = '';
     _inputEl.style.height = 'auto';
     _appendBubble('user', text);
-    _history.push({ role: 'user', content: text });
 
     if (!window.electronAPI?.ai?.streamChat) return;
 
     const convoId = window._activeConversationId || ('m_' + Date.now());
     window._activeConversationId = convoId;
+    // Rebind history to the active convo. If the convoId changed since
+    // the last send (e.g. the user navigated and a new m_<ts> was
+    // minted) the previous turns are irrelevant to this thread.
+    if (_historyConvoId !== convoId) {
+      _history = [];
+      _historyConvoId = convoId;
+    }
+    _history.push({ role: 'user', content: text });
     try {
       // Clone so providers' filter/map can't mutate our history state.
       await window.electronAPI.ai.streamChat(_history.slice(), convoId);
     } catch (err) {
+      // The user turn is already in history but no assistant reply
+      // will follow — leaving it would produce a [user, user, …]
+      // sequence on the next send, which Claude rejects outright
+      // (strict user/assistant alternation).
+      _history.pop();
       _appendBubble('assistant', 'Something went wrong. Try again?');
     }
   }
@@ -263,32 +284,43 @@ const BloomSheet = (() => {
   function _onDelta(data) {
     if (!_isOpen) return;
     if (data?.conversationId !== window._activeConversationId) return;
+    const chunk = data.text || '';
+    if (!chunk) return;
     if (!_currentAssistantBubble) {
       _currentAssistantBubble = _appendBubble('assistant', '');
-      _currentAssistantText = '';
+      _assistantHasContent = false;
     }
-    _currentAssistantText += data.text || '';
     // Append a text node instead of rewriting textContent each delta —
     // rewriting the whole string per tick is O(n²) across a long reply
     // and forced a layout + repaint every ~20ms while streaming.
-    _currentAssistantBubble.appendChild(document.createTextNode(data.text || ''));
+    _currentAssistantBubble.appendChild(document.createTextNode(chunk));
+    _assistantHasContent = true;
     _scrollToBottom();
   }
 
   function _onDone() {
     // Commit the streamed assistant reply to history so it carries into
-    // the next turn's prompt.
-    if (_currentAssistantText) {
-      _history.push({ role: 'assistant', content: _currentAssistantText });
+    // the next turn's prompt. Read the final text from the bubble
+    // itself — avoids maintaining a parallel accumulator.
+    if (_assistantHasContent && _currentAssistantBubble) {
+      _history.push({
+        role: 'assistant',
+        content: _currentAssistantBubble.textContent || '',
+      });
     }
     _currentAssistantBubble = null;
-    _currentAssistantText = '';
+    _assistantHasContent = false;
   }
 
   function _onError(data) {
     _appendBubble('assistant', `Error: ${data?.error || 'unknown'}`);
     _currentAssistantBubble = null;
-    _currentAssistantText = '';
+    _assistantHasContent = false;
+    // Roll back the user turn that won't get an assistant reply so we
+    // keep strict user/assistant alternation in history.
+    if (_history.length && _history[_history.length - 1].role === 'user') {
+      _history.pop();
+    }
   }
 
   return { open, close, toggle };

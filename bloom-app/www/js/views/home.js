@@ -632,6 +632,10 @@ const HomeView = (() => {
               </div>
               <div class="file-info">
                 <div class="file-name">${_escapeHtml(c.title || 'Conversation')}</div>
+                <!-- The mobile bridge always emits messageCount now; the
+                     c.messages?.length fallback only runs on the desktop
+                     conversation shape. Keep both so this template works
+                     on either platform. -->
                 <div class="file-size">${c.messageCount ?? (Array.isArray(c.messages) ? c.messages.length : 0)} messages</div>
               </div>
             </div>
