@@ -16,7 +16,13 @@
 
 (() => {
   const FS = () => window.Capacitor?.Plugins?.Filesystem;
-  const DIR = 'Data'; // Capacitor Filesystem.Directory.Data
+  // Capacitor Filesystem.Directory.Data — the enum VALUE is 'DATA'
+  // (uppercase). Previously this was 'Data' (the enum KEY) which on
+  // Android caused Directory.valueOf("Data") to fail silently → null
+  // File → NPE on File.exists() / File.mkdirs() → native CapacitorPlugins
+  // FATAL EXCEPTION that killed the app the moment Study tab mounted
+  // and tried to create the decks dir.
+  const DIR = 'DATA';
   const ROOT = 'study';
   const DECKS_DIR = `${ROOT}/decks`;
   const SESSIONS_PATH = `${ROOT}/sessions.json`;
