@@ -14,6 +14,7 @@ const Confirm = (() => {
 
       // Dialog
       const dialog = document.createElement('div');
+      dialog.className = 'confirm-dialog';
       dialog.style.cssText = `
         background: var(--glass-card-bg, rgba(30,12,20,0.35));
         backdrop-filter: blur(44px) saturate(1.4);
@@ -141,6 +142,7 @@ const Confirm = (() => {
       `;
 
       const dialog = document.createElement('div');
+      dialog.className = 'confirm-dialog confirm-dialog--prompt';
       dialog.style.cssText = `
         background: var(--glass-card-bg, rgba(30,12,20,0.35));
         backdrop-filter: blur(44px) saturate(1.4);

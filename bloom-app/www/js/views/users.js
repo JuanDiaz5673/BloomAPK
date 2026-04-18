@@ -4,7 +4,7 @@ const UsersView = (() => {
     return `
     <div class="users-view">
       <!-- Profile Hero — full width -->
-      <div class="glass-card" style="text-align:center;padding:40px 32px 32px;position:relative;overflow:hidden;animation:fadeSlideUp 0.5s ease 0.05s both;">
+      <div class="glass-card users-profile-hero" style="text-align:center;padding:40px 32px 32px;position:relative;overflow:hidden;animation:fadeSlideUp 0.5s ease 0.05s both;">
         <div style="position:absolute;top:0;left:0;right:0;height:100px;background:linear-gradient(180deg,rgba(var(--accent-primary-rgb),0.1) 0%,transparent 100%);"></div>
         <div style="position:relative;display:flex;align-items:center;gap:20px;justify-content:center;">
           <div class="avatar" style="width:72px;height:72px;font-size:28px;border-radius:20px;box-shadow:0 8px 32px rgba(var(--accent-primary-rgb),0.35);flex-shrink:0;" id="user-avatar"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="1.8" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>

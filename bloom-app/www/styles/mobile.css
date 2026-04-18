@@ -1359,6 +1359,114 @@
      so native datetime-local pickers fit inside the card. */
   .event-modal { padding: 18px !important; }
 
+  /* ── Study view — base padding was 24px 32px (64px horizontal eats
+     ~17% of a 400px screen). Collapse to breathable single-column. */
+  .study-view { padding: 12px 14px 24px !important; }
+  .study-pomodoro { padding: 28px 18px 20px !important; }
+  .study-pomodoro::before { width: min(360px, 80vw) !important; }
+  .study-end-sub { max-width: 100% !important; }
+
+  /* ── Notes editor — 24px/28px ProseMirror side padding is too much
+     when the sheet has its own padding on top. Tighten on small phones. */
+  .notes-editor-panel .ProseMirror {
+    padding: 18px 14px 36px !important;
+  }
+
+  /* ── Emoji picker — fixed 360px overflows narrow phones. Clamp and
+     drop column count so cells stay tappable. */
+  .nt-emoji-picker {
+    width: min(94vw, 360px) !important;
+    max-width: calc(100vw - 16px);
+  }
+  .nt-emoji-grid {
+    grid-template-columns: repeat(7, 1fr) !important;
+  }
+
+  /* ── Home files grid — base is 4-col at the 768px breakpoint. At
+     400px that's ~85px cells which crushes icon + label. Two columns
+     keep text legible while still dense. */
+  .dashboard-grid .files-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* ── Settings page — newer .settings-page layout wasn't covered by
+     the old .settings-view mobile rules. Stack input + button groups
+     so API key / credential inputs keep usable width. */
+  .settings-page .settings-input-group,
+  .settings-page .input-group {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .settings-page .settings-input-group .btn-sm,
+  .settings-page .input-group .btn-sm {
+    align-self: stretch;
+  }
+  .settings-input { max-width: 100% !important; }
+
+  /* ── Search modal — 580px default collapses to 100% via width:100%,
+     but the big inner padding wastes a lot of a 400px screen. Tighten. */
+  .search-modal {
+    max-width: min(94vw, 580px) !important;
+  }
+  .search-modal-header,
+  .search-modal-body { padding-left: 14px !important; padding-right: 14px !important; }
+
+  /* ── Confirm / prompt dialogs — inline min-width was 320/360px which
+     forces near-100% of a small screen and can push buttons below the
+     fold. Override regardless of the inline style. */
+  .confirm-dialog {
+    min-width: min(88vw, 320px) !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 22px !important;
+  }
+  .confirm-dialog--prompt {
+    min-width: min(90vw, 320px) !important;
+  }
+
+  /* ── Toast container: scoot in from 20px → 12px so long status
+     messages don't clip at the right edge on narrow phones. */
+  .toast-container {
+    top: calc(12px + env(safe-area-inset-top, 0px)) !important;
+    right: 12px !important;
+    left: 12px !important;
+    align-items: flex-end;
+  }
+  .toast-container .toast {
+    max-width: min(320px, calc(100vw - 32px)) !important;
+  }
+
+  /* ── Chat input row — save a few pixels of horizontal padding so
+     the textarea + send button don't fight for every character. */
+  .chat-input-area { padding: 10px 14px 14px !important; }
+  .chat-input-wrapper { padding: 10px 12px !important; }
+
+  /* ── Stats page 2-col feature grid — collapse to 1-col at 400px.
+     The stat-num font is 24px; at 2-col with 360-wide viewport it
+     sits beside a label that's forced to wrap + overlap the icon. */
+  .stats-features-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Users profile hero — 40/32/32 padding crushes the 28px serif
+     name to 2 lines at 360px. Drop side padding and let the flex
+     row wrap the avatar + text into a column if needed. */
+  .users-profile-hero {
+    padding: 24px 16px 20px !important;
+  }
+  .users-profile-hero > div:last-child {
+    flex-wrap: wrap;
+    justify-content: center !important;
+  }
+
+  /* ── Notifications popover — the JS now clamps width but make the
+     list rows themselves scale: tighter padding, smaller meta line,
+     so a 3-event list doesn't force outer scroll. */
+  .notifications-popover { width: min(340px, calc(100vw - 24px)) !important; }
+  .notifications-popover .notification-item { padding: 10px 12px !important; }
+  .notifications-popover .notification-title { font-size: 13px !important; }
+  .notifications-popover .notification-time { font-size: 11px !important; }
+
   /* Notes editor formatting toolbar: taller tap targets (44px
      Android accessibility minimum) and more breathable row. */
   .notes-editor-panel .tt-btn,
@@ -1483,6 +1591,69 @@
   .settings-view .input-group .btn-sm {
     align-self: flex-end;
   }
+
+  /* ── Extra-tight overrides for ≤360px phones ─────────────────────── */
+
+  /* Study view — collapse further. At 360px, even 14px side padding
+     + the glass-card's own 18px internal padding is heavy. */
+  .study-view { padding: 10px 8px 20px !important; }
+  .study-pomodoro { padding: 22px 14px 16px !important; }
+  .study-pomodoro::before { width: min(280px, 70vw) !important; }
+
+  /* Notes editor ProseMirror — tighter still, emoji picker drops to
+     6 columns so each cell is ~48px (one-thumb tappable). */
+  .notes-editor-panel .ProseMirror { padding: 14px 10px 32px !important; }
+  .nt-emoji-grid { grid-template-columns: repeat(6, 1fr) !important; }
+
+  /* Bloom bottom-sheet grab handle — shrink the outer margin so the
+     expanded hit zone doesn't bleed into the header action row below. */
+  .bloom-sheet-grab {
+    margin: 6px auto 2px !important;
+    height: 28px !important;
+  }
+
+  /* Bottom-nav FAB breathing ring — the keyframes scale to 1.18x at
+     the peak, which on ≤360 would overshoot the tab row and collide
+     with neighboring labels. Pull the ring inset in. */
+  .bottom-nav-fab::before { inset: -2px !important; }
+
+  /* Chat input row — last few pixels matter when the textarea is at
+     its minimum single-line height. */
+  .chat-input-area { padding: 8px 10px 12px !important; }
+  .chat-input-wrapper { padding: 8px 10px !important; }
+
+  /* Confirm dialog — even tighter on tiny screens. 22px padding was
+     still eating enough to wrap OK/Cancel button labels. */
+  .confirm-dialog {
+    padding: 18px !important;
+    min-width: min(88vw, 280px) !important;
+  }
+  .confirm-dialog--prompt {
+    min-width: min(90vw, 280px) !important;
+  }
+
+  /* Users hero — already dropped padding at 400px; at 360 the avatar
+     + 28px serif name on one flex row flat-out won't fit, so stack. */
+  .users-profile-hero > div:last-child {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .users-profile-hero > div:last-child > div[style*="text-align:left"] {
+    text-align: center !important;
+  }
+
+  /* Settings inputs — cap button labels to one line. */
+  .settings-page .btn-sm,
+  .settings-view .btn-sm {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Stats weekly bar chart — labels crush on 360; tighten letter-spacing
+     and shrink bar gap so all 7 days still fit the card width. */
+  .stat-bars { gap: 6px !important; }
+  .stat-labels { letter-spacing: 0.5px !important; font-size: 10px !important; }
 }
 
 /* ── Short-viewport / landscape guards ─────────────────────────────
@@ -1498,4 +1669,46 @@
   .dashboard-grid {
     min-height: auto;
   }
+
+  /* Flashcard review overlay — the 62vh card becomes ~370px on a
+     landscape phone and there's only room for 1-2 lines of grade bar
+     below. Drop the card height so the grade buttons are always in
+     the thumb-zone without scroll. */
+  .study-flashcard { height: min(68vh, 320px) !important; }
+  .study-flashcard-content { font-size: 18px !important; padding: 18px 12px !important; }
+  .study-overlay-top { padding: 4px 10px !important; }
+
+  /* Pomodoro — the big hero circle + timer don't fit vertically on
+     landscape. Collapse the hero so controls aren't below the fold. */
+  .study-pomodoro { padding: 16px 18px 14px !important; }
+  .study-pomodoro::before { display: none !important; }
+
+  /* Bloom sheet — expanded height caps at 92vh by default; in landscape
+     that's only ~300px after the bottom-nav, with scrolling constrained.
+     Reduce it to a reasonable chat pane. */
+  .bloom-sheet.expanded { height: 88vh !important; }
+
+  /* Confirm dialog in landscape — button row is often just below
+     the fold on a 360-tall viewport. Tighten padding. */
+  .confirm-dialog { padding: 16px !important; }
+
+  /* Notes toolbar — the 2-row formatting bar steals vertical pixels
+     away from the editor body. Tighten button heights. */
+  .notes-editor-panel .tt-btn,
+  .notes-editor-panel .tt-seg {
+    min-height: 36px !important;
+  }
+
+  /* Calendar — hide the "Today" pill label text (keep the icon via
+     base styles) and compress the toolbar so the grid has room. */
+  .calendar-toolbar { padding: 6px 10px !important; }
+}
+
+/* ── Short-viewport phone portrait guard (e.g. split-screen) ──────── */
+@media (max-height: 520px) {
+  /* Landscape AND split-screen portrait — reduce any fixed hero
+     heights so actionable CTAs don't push below the fold. */
+  .glass-card { padding-top: 14px; padding-bottom: 14px; }
+  .study-flashcard { height: min(62vh, 260px) !important; }
+  .setup-wizard-content { padding: 14px 14px 12px !important; }
 }

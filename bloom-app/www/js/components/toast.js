@@ -5,6 +5,7 @@ const Toast = (() => {
   function ensureContainer() {
     if (!toastContainer) {
       toastContainer = document.createElement('div');
+      toastContainer.className = 'toast-container';
       toastContainer.style.cssText = `
         position: fixed; top: 20px; right: 20px; z-index: 9999;
         display: flex; flex-direction: column; gap: 8px;
@@ -42,6 +43,7 @@ const Toast = (() => {
       warning: 'rgba(253,154,108,0.3)'
     };
 
+    toast.className = 'toast';
     toast.style.cssText = `
       background: ${colors[type] || colors.info};
       backdrop-filter: blur(20px);

@@ -122,19 +122,23 @@ const Notifications = (() => {
       </div>`;
     document.body.appendChild(popover);
 
-    // Position below the anchor (header bell), right-aligned to it
+    // Position below the anchor (header bell), right-aligned to it.
+    // Clamp popover to viewport so it doesn't overflow on ≤400/≤360 phones —
+    // at 360px we land on ~336px popover with 12px gutters on each side.
+    const vw = window.innerWidth || 360;
+    const popoverWidth = Math.min(340, Math.max(280, vw - 24));
     if (anchorEl) {
       const r = anchorEl.getBoundingClientRect();
-      const popoverWidth = 340;
-      const right = Math.max(12, window.innerWidth - r.right);
+      const right = Math.max(12, Math.min(vw - r.right, vw - popoverWidth - 12));
       popover.style.top = `${Math.round(r.bottom + 10)}px`;
       popover.style.right = `${right}px`;
       popover.style.width = `${popoverWidth}px`;
     } else {
       popover.style.top = '64px';
-      popover.style.right = '20px';
-      popover.style.width = '340px';
+      popover.style.right = '12px';
+      popover.style.width = `${popoverWidth}px`;
     }
+    popover.style.maxWidth = 'calc(100vw - 24px)';
 
     requestAnimationFrame(() => popover.classList.add('visible'));
 
