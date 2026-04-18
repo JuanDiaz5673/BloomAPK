@@ -55,6 +55,17 @@ const SetupWizard = (() => {
       setTimeout(() => {
         overlay?.remove();
         overlay = null;
+        // Force the now-visible view to re-init. This covers the case
+        // where sign-in happened mid-wizard but the user sat on the
+        // AI/theme steps long enough that the first debounced refetch
+        // ran before the UI was visible — by the time they see home,
+        // fresh data is already on screen instead of skeletons.
+        try {
+          if (typeof Router !== 'undefined') {
+            const v = Router.getCurrentView?.();
+            if (v) Router.navigate(v, { force: true });
+          }
+        } catch {}
       }, 300);
     }
   }
@@ -142,6 +153,16 @@ const SetupWizard = (() => {
           Toast.show('Google account connected!', 'success');
           await renderStep(0); // Re-render to show connected state
           Header.updateWithProfile?.();
+          // Force the (hidden) home view to re-fetch with the fresh
+          // tokens so its cards are already populated by the time the
+          // wizard closes. Event-based refresh was sometimes swallowed
+          // while the wizard's own DOM churn was in flight — an
+          // explicit re-init is the reliable path.
+          try {
+            if (typeof Router !== 'undefined' && Router.getCurrentView?.() === 'home') {
+              Router.navigate('home', { force: true });
+            }
+          } catch {}
         } else {
           Toast.show(result.error || 'Sign-in cancelled', 'warning');
           if (btn) { btn.disabled = false; btn.textContent = 'Connect Google Account'; }

@@ -42,8 +42,11 @@ const Router = (() => {
   const FADE_IN_MS = 200;
   let navInProgress = false;
 
-  async function navigate(viewName) {
-    if (viewName === currentView) return;
+  async function navigate(viewName, opts = {}) {
+    // Pass { force: true } to re-init the current view (useful after
+    // global state changes like Google sign-in where the view needs
+    // to re-fetch). Normal nav skips same-view calls.
+    if (viewName === currentView && !opts.force) return;
     if (navInProgress) return; // ignore rapid clicks while a transition is in-flight
     navInProgress = true;
 
