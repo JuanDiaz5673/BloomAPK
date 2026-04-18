@@ -61,7 +61,7 @@
      On mobile the view-container scrolls; give it the safe-area
      bottom padding so content never hides behind the nav bar. */
   #view-container {
-    padding: 0 10px 12px;
+    padding: 0 4px 10px;
     /* .main already reserves mobile-safe-bottom for the fixed nav —
        don't double it up here or empty wallpaper shows below cards. */
   }
@@ -69,7 +69,7 @@
   /* ── Glass cards — become full-width vertical stack ───────────── */
   .glass-card {
     width: 100%;
-    margin-bottom: 14px;
+    margin-bottom: 8px;
     border-radius: 16px;
   }
 
@@ -80,8 +80,37 @@
   .home-row {
     display: flex !important;
     flex-direction: column !important;
-    gap: 12px;
+    gap: 8px;
     grid-template-columns: none !important;
+  }
+
+  /* ── Skeleton loaders for home cards ─────────────────────────────
+     Shown while async Google fetches are in flight so the user sees
+     animated placeholders instead of a blank/finished-looking card. */
+  .skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 6px 2px;
+  }
+  .skeleton-row {
+    height: 14px;
+    border-radius: 7px;
+    background: linear-gradient(
+      90deg,
+      rgba(var(--accent-muted-rgb), 0.10) 0%,
+      rgba(var(--accent-primary-rgb), 0.18) 50%,
+      rgba(var(--accent-muted-rgb), 0.10) 100%
+    );
+    background-size: 200% 100%;
+    animation: bloomSkeletonShimmer 1.6s ease-in-out infinite;
+  }
+  .skeleton-row:nth-child(1) { width: 75%; }
+  .skeleton-row:nth-child(2) { width: 92%; }
+  .skeleton-row:nth-child(3) { width: 60%; }
+  @keyframes bloomSkeletonShimmer {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
   }
   /* Fill the viewport so cards don't leave wallpaper showing below.
      Home's root is `.dashboard-grid` (not `.home-view`). Last card
@@ -897,11 +926,73 @@
     padding: 10px 12px !important;
   }
 
-  /* ── Files — single column grid ─────────────────────────────── */
+  /* ── Files — mobile rework ──────────────────────────────────── */
   .files-view .file-grid,
   .files-view .folder-grid {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
+  }
+  /* Toolbar: stack into 2 rows. Breadcrumb on top, actions on bottom. */
+  .files-view .files-toolbar {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .files-view .files-toolbar > div:last-child {
+    display: flex !important;
+    justify-content: space-between !important;
+    width: 100%;
+    gap: 6px !important;
+  }
+  /* Breadcrumb cleaner — no awkward wrap */
+  .files-view .files-breadcrumb {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .files-view .files-breadcrumb::-webkit-scrollbar { display: none; }
+  .files-view .files-breadcrumb-item.current {
+    font-size: 14px !important;
+    white-space: nowrap;
+  }
+  /* Action buttons → icon-first, smaller text */
+  .files-view .files-action-btn {
+    padding: 7px 10px !important;
+    font-size: 11px !important;
+    border-radius: 10px !important;
+    flex: 0 0 auto;
+  }
+  /* Hide the action-btn label text on phones; rely on icon */
+  .files-view .files-action-btn {
+    font-size: 0 !important;
+  }
+  .files-view .files-action-btn svg {
+    width: 16px !important; height: 16px !important; margin: 0 !important;
+  }
+  /* Drop the divider line on the action row */
+  .files-view .files-toolbar > div:last-child > div[style*="background:var(--glass-border)"] {
+    display: none !important;
+  }
+  /* View toggle pills tightened */
+  .files-view .files-view-toggle button {
+    padding: 6px !important;
+    width: 32px !important; height: 32px !important;
+  }
+  /* Tighter top toolbar card */
+  .files-view > .glass-card:first-child {
+    padding: 8px 10px !important;
+  }
+  /* Compact empty state — was 60px padding + 52px icon */
+  .files-view .files-content > div[style*="grid-column:1/-1"] {
+    padding: 28px 16px !important;
+    gap: 10px !important;
+  }
+  .files-view .files-content > div[style*="grid-column:1/-1"] svg {
+    width: 36px !important; height: 36px !important;
+  }
+  .files-view .files-content > div[style*="grid-column:1/-1"] > div {
+    font-size: 15px !important;
   }
 
   /* ── Avoid horizontal scroll on any stray wide element ───────── */

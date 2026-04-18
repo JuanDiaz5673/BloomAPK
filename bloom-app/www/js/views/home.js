@@ -145,7 +145,7 @@ const HomeView = (() => {
           <h3>Upcoming</h3>
         </div>
         <div class="schedule-list" id="home-upcoming">
-          <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">Loading...</div>
+          <div class="skeleton-list"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
         </div>
       </div>
 
@@ -156,7 +156,7 @@ const HomeView = (() => {
           <span>Recent Notes</span>
         </div>
         <div class="activity-list" id="home-notes">
-          <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">Loading...</div>
+          <div class="skeleton-list"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
         </div>
       </div>
 
@@ -190,7 +190,7 @@ const HomeView = (() => {
           <span>Recent Files</span>
         </div>
         <div class="message-list" id="home-drive-files">
-          <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">Loading...</div>
+          <div class="skeleton-list"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
         </div>
       </div>
 
@@ -201,7 +201,7 @@ const HomeView = (() => {
           <span>Recent Conversations</span>
         </div>
         <div class="files-grid" id="home-conversations">
-          <div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">Loading...</div>
+          <div class="skeleton-list" style="grid-column:1/-1;"><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
         </div>
       </div>
     </div>`;
