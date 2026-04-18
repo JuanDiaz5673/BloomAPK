@@ -481,13 +481,24 @@
     gap: 12px;
   }
   .study-tile {
-    flex: 1 1 0;
+    /* Height hugs content + padding so the actual 18px top/bottom
+       reads as visually equal. Previously flex:1 1 0 stretched the
+       tile to fill .study-tiles' remaining vertical space; with
+       align-items:center that pushed the content block into the
+       middle, leaving uneven-looking blank space above and below.
+       flex:0 0 auto restores symmetric padding on Pomodoro +
+       Flashcards tiles. */
+    flex: 0 0 auto !important;
     min-height: 120px;
     /* Tighten the default 24px/22px so the icon, text, and chevron
-       don't feel crowded when the tile also grows vertically. */
+       don't feel crowded on narrow screens. */
     padding: 18px 16px !important;
     gap: 14px !important;
   }
+  /* .study-tiles was set to flex:1 to fill the hub view — keep the
+     outer layout but don't force-stretch individual tiles; any extra
+     vertical room becomes a trailing gap, not lopsided tile padding. */
+  .study-tiles { justify-content: flex-start; }
   .study-tile-icon {
     width: 52px !important;
     height: 52px !important;
