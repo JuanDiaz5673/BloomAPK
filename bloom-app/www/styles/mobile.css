@@ -806,6 +806,74 @@
   .calendar-container .mobile-event-dots .dot.holiday {
     background: #fd9a6c;
   }
+
+  /* ── timeGridWeek / timeGridDay event rendering ─────────────────
+     Default FullCalendar lays 7 day columns across ~320px of usable
+     width = ~45px per column. Long event titles then word-broke one
+     char per line (vertical stack of letters). Fix: force single-
+     line ellipsis on the event title AND let the timegrid scroll
+     horizontally so each column gets a minimum width wide enough
+     for a legible label. User swipes to see later days. */
+  .calendar-container .fc-view-harness .fc-timegrid {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Day columns: minimum 96px so a ~10-char title renders on one
+     line before ellipsifying. */
+  .calendar-container .fc-timegrid-col {
+    min-width: 96px;
+  }
+  /* Time axis stays anchored on the left while day columns scroll
+     horizontally — always see the hour you're looking at. */
+  .calendar-container .fc-timegrid-axis,
+  .calendar-container .fc-timegrid-axis-frame,
+  .calendar-container .fc-timegrid-slot-label {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    background: rgba(30, 12, 20, 0.82);
+    backdrop-filter: blur(10px);
+  }
+
+  /* Event chip: single-line title + time, ellipsis when too long.
+     Smaller padding + font than desktop so the 9px time fits next
+     to a tidy truncated label instead of stacking one char per row. */
+  .calendar-container .fc-timegrid-event {
+    font-size: 10px !important;
+    padding: 0 !important;
+    border-radius: 6px !important;
+  }
+  .calendar-container .fc-timegrid-event .fc-event-main,
+  .calendar-container .fc-timegrid-event .fc-event-main-frame {
+    padding: 3px 5px !important;
+    overflow: hidden !important;
+  }
+  .calendar-container .fc-timegrid-event .fc-event-time {
+    font-size: 9px !important;
+    font-weight: 600;
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 1px;
+  }
+  .calendar-container .fc-timegrid-event .fc-event-title,
+  .calendar-container .fc-timegrid-event .fc-event-title-container {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    display: block !important;
+    line-height: 1.2 !important;
+  }
+  /* All-day row on week/day: compact + single-line */
+  .calendar-container .fc-daygrid-body .fc-event {
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 10px !important;
+  }
+
   /* Header row days (SUN MON…) */
   .calendar-container .fc-col-header-cell-cushion {
     font-size: 10px !important;
