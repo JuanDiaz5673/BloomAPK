@@ -214,11 +214,31 @@ const BloomSheet = (() => {
     // emit onStreamDelta events which append into _currentAssistantBubble.
     const convoId = window._activeConversationId || ('m_' + Date.now());
     window._activeConversationId = convoId;
+    // Bridge expects (messages: Array<{role,content}>, conversationId).
+    // Passing a single object here broke every provider's .filter() call
+    // ("messages.filter is not a function"). Build the messages array
+    // from any prior bubbles in this sheet + the new user turn.
+    const messages = _collectSheetHistory().concat([{ role: 'user', content: text }]);
     try {
-      await window.electronAPI.ai.streamChat({ message: text, conversationId: convoId });
+      await window.electronAPI.ai.streamChat(messages, convoId);
     } catch (err) {
       _appendBubble('assistant', 'Something went wrong. Try again?');
     }
+  }
+
+  // Pull text out of each existing bubble so the model has context for
+  // multi-turn mobile-sheet chats. Role is inferred from the bubble's
+  // `data-role` attribute set in _appendBubble.
+  function _collectSheetHistory() {
+    const out = [];
+    document.querySelectorAll('.bloom-sheet-msg[data-role]').forEach(el => {
+      const role = el.getAttribute('data-role');
+      const content = (el.textContent || '').trim();
+      if ((role === 'user' || role === 'assistant') && content) {
+        out.push({ role, content });
+      }
+    });
+    return out;
   }
 
   function _appendBubble(role, text) {
@@ -227,6 +247,7 @@ const BloomSheet = (() => {
     if (empty) empty.remove();
     const bubble = document.createElement('div');
     bubble.className = `bloom-sheet-msg ${role}`;
+    bubble.setAttribute('data-role', role);
     bubble.textContent = text || '';
     _messagesEl.appendChild(bubble);
     _scrollToBottom();
