@@ -185,9 +185,12 @@ const HomeView = (() => {
 
       <!-- Recent Drive Files Card -->
       <div class="glass-card card-messages">
-        <div class="card-title" style="cursor:pointer;" data-nav="files">
-          <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          <span>Recent Files</span>
+        <div class="card-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div class="card-title" style="cursor:pointer;margin-bottom:0;" data-nav="files">
+            <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span>Recent Files</span>
+          </div>
+          <span class="card-view-all" role="button" tabindex="0" data-nav="files">View all →</span>
         </div>
         <div class="message-list" id="home-drive-files">
           <div class="skeleton-list"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
