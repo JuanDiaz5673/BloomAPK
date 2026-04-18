@@ -37,7 +37,12 @@
     'https://www.googleapis.com/auth/calendar.readonly',
     'https://www.googleapis.com/auth/calendar.events',
   ];
-  const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
+  // Full drive scope to match desktop AllDash. drive.file would be
+  // less privileged but can't read arbitrary user folders and can't
+  // upload into user-owned folders the app didn't create — both of
+  // which the Files view needs. Restricted scope, requires the user
+  // to be listed as a test user on the OAuth consent screen.
+  const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive'];
   const PROFILE_SCOPES = ['openid', 'profile', 'email'];
   const SCOPES = [...PROFILE_SCOPES, ...CALENDAR_SCOPES, ...DRIVE_SCOPES];
 

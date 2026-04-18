@@ -398,10 +398,15 @@
         window._bloomDrive?.openFile(idOrUrl, webViewLink) ?? _notImpl('Open Drive file')(),
       createFolder: (parentId, name) =>
         window._bloomDrive?.createFolder(parentId, name) ?? _notImpl('Drive folder creation')(),
-      // Upload from the webview needs a file picker we haven't built
-      // on mobile yet. Leave as a visible "not yet" so the UI can
-      // hide or disable the button rather than silently no-op.
-      uploadFile: () => _notImpl('Drive upload (mobile)'),
+      // Desktop passes a filesystem path; mobile passes a File/Blob
+      // (from <input type="file">). The view handles both: if it's
+      // a string it's a path, otherwise a File we uploaded directly.
+      uploadFile: (parentId, fileOrPath) => {
+        if (fileOrPath && typeof fileOrPath === 'object' && typeof fileOrPath.arrayBuffer === 'function') {
+          return window._bloomDrive?.uploadFile(parentId, fileOrPath) ?? _notImpl('Drive upload')();
+        }
+        return _notImpl('Drive upload (path-based — mobile expects File)')();
+      },
       deleteFile: (fileId) =>
         window._bloomDrive?.deleteFile(fileId) ?? { success: true },
     },
@@ -413,7 +418,7 @@
           ?? _notImpl('Note creation')(),
       update: (fileId, title, content) =>
         window._bloomNotes?.updateNote(fileId, title, content) ?? { success: false },
-      delete: (fileId) => window._bloomNotes?.deleteNote(fileId) ?? { success: true },
+      delete: (fileId, opts) => window._bloomNotes?.deleteNote(fileId, opts) ?? { success: true },
       createFolder: (name, parentFolderId) =>
         window._bloomNotes?.createNotesFolder(name, parentFolderId)
           ?? _notImpl('Notes folder creation')(),

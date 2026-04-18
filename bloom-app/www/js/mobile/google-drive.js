@@ -85,6 +85,70 @@
     return { id: res.id, name: res.name, mimeType: res.mimeType, isFolder: true };
   }
 
+  // Upload a File/Blob (from an <input type="file"> or drag-drop) into
+  // the given Drive folder. Uses a resumable-style multipart request
+  // with Content-Type: multipart/related so the metadata + body land
+  // in one round-trip. Large files go through upload.googleapis.com.
+  const MAX_UPLOAD_SIZE = 100 * 1024 * 1024; // 100 MB — guard against OOM
+  async function uploadFile(parentId, file) {
+    if (!file || typeof file.arrayBuffer !== 'function') {
+      throw new Error('Invalid file');
+    }
+    if (parentId !== 'root' && !_isValidId(parentId)) throw new Error('Invalid parent id');
+    if (file.size > MAX_UPLOAD_SIZE) {
+      throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB, max 100 MB)`);
+    }
+    const token = await window._bloomGoogle?.getAccessToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const metadata = {
+      name: String(file.name || 'Upload').slice(0, 255),
+      parents: [parentId],
+      ...(file.type ? { mimeType: file.type } : {}),
+    };
+
+    // Use a raw FormData multipart body. Google accepts either the
+    // Content-Type: multipart/related shape or this multipart/form-data
+    // shape via ?uploadType=multipart.
+    const boundary = 'bloom-' + Math.random().toString(36).slice(2);
+    const encoder = new TextEncoder();
+    const head = encoder.encode(
+      `--${boundary}\r\n` +
+      `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+      JSON.stringify(metadata) + `\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`
+    );
+    const tail = encoder.encode(`\r\n--${boundary}--`);
+    const body = new Uint8Array(head.length + file.size + tail.length);
+    body.set(head, 0);
+    body.set(new Uint8Array(await file.arrayBuffer()), head.length);
+    body.set(tail, head.length + file.size);
+
+    const res = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size,modifiedTime,webViewLink',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': `multipart/related; boundary=${boundary}`,
+        },
+        body,
+      }
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Upload failed (${res.status}): ${text || res.statusText}`);
+    }
+    const j = await res.json();
+    return {
+      id: j.id, name: j.name, mimeType: j.mimeType,
+      size: j.size ? Number(j.size) : 0,
+      modifiedTime: j.modifiedTime, webViewLink: j.webViewLink,
+      isFolder: false,
+    };
+  }
+
   async function deleteFile(fileId) {
     if (!_isValidId(fileId)) throw new Error('Invalid file id');
     await _api().authedFetch(
@@ -154,6 +218,6 @@
 
   window._bloomDrive = {
     listFiles, searchFiles, createFolder, deleteFile,
-    getFileAsDataUri, openFile,
+    getFileAsDataUri, openFile, uploadFile,
   };
 })();

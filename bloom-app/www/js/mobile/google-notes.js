@@ -253,13 +253,51 @@
     };
   }
 
-  // ── Delete (simple — no cascade) ─────────────────────────────────
-  async function deleteNote(fileId) {
-    await _api().authedFetch(
-      `${DRIVE_BASE}/files/${encodeURIComponent(fileId)}`,
-      { method: 'PATCH', body: JSON.stringify({ trashed: true }) }
-    );
-    return { success: true, trashed: 1 };
+  // ── Delete with optional cascade ─────────────────────────────────
+  // Walks the sub-page tree via appProperties.parentNoteId = <id> and
+  // trashes every descendant. Cycle-safe (visited set) and depth-
+  // bounded so a corrupt appProperties graph can't loop. Matches the
+  // desktop deleteNote({ cascadeChildren }) shape so the bridge
+  // signature is stable across platforms.
+  async function deleteNote(fileId, { cascadeChildren = true } = {}) {
+    const visited = new Set([fileId]);
+    const toTrash = [fileId];
+    if (cascadeChildren) {
+      const queue = [fileId];
+      let depth = 0;
+      while (queue.length && depth++ < 50) {
+        const levelIds = queue.splice(0, queue.length);
+        // One list call per level — filter by appProperties has this parent.
+        const results = await Promise.allSettled(levelIds.map(async (pid) => {
+          const params = new URLSearchParams({
+            q: `trashed=false and appProperties has { key='parentNoteId' and value='${_escapeQ(pid)}' }`,
+            fields: 'files(id)',
+            pageSize: '200',
+          });
+          const res = await _api().authedFetch(`${DRIVE_BASE}/files?${params}`);
+          return res.files || [];
+        }));
+        for (const r of results) {
+          if (r.status !== 'fulfilled') continue;
+          for (const f of r.value) {
+            if (visited.has(f.id)) continue;
+            visited.add(f.id);
+            toTrash.push(f.id);
+            queue.push(f.id);
+          }
+        }
+      }
+    }
+    // Trash in parallel; one failure doesn't block the rest.
+    const trashResults = await Promise.allSettled(toTrash.map(id =>
+      _api().authedFetch(
+        `${DRIVE_BASE}/files/${encodeURIComponent(id)}`,
+        { method: 'PATCH', body: JSON.stringify({ trashed: true }) }
+      )
+    ));
+    const trashed = trashResults.filter(r => r.status === 'fulfilled').length;
+    const failed = trashResults.length - trashed;
+    return { success: failed === 0, trashed, failed };
   }
 
   // ── Folders ──────────────────────────────────────────────────────

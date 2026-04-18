@@ -163,6 +163,36 @@ const FilesView = (() => {
 
     // Upload File
     document.getElementById('files-upload-btn')?.addEventListener('click', async () => {
+      // Two paths:
+      //  - Desktop: bridge opens a native file picker and returns
+      //    an array of uploaded file metadata.
+      //  - Mobile: bridge can't open a native picker; instead use a
+      //    hidden <input type="file"> and upload each File the user
+      //    selects through the drive.uploadFile(parentId, File) shim.
+      if (window._bloomDrive?.uploadFile) {
+        const picker = document.createElement('input');
+        picker.type = 'file';
+        picker.multiple = true;
+        picker.style.display = 'none';
+        document.body.appendChild(picker);
+        picker.addEventListener('change', async () => {
+          const files = Array.from(picker.files || []);
+          picker.remove();
+          if (files.length === 0) return;
+          Toast.show(`Uploading ${files.length} file${files.length > 1 ? 's' : ''}…`, 'info');
+          const results = await Promise.allSettled(
+            files.map(f => window.electronAPI.drive.uploadFile(currentFolderId, f))
+          );
+          const ok = results.filter(r => r.status === 'fulfilled').length;
+          const failed = results.length - ok;
+          if (ok) Toast.show(`${ok} uploaded${failed ? ` · ${failed} failed` : ''}`, failed ? 'warning' : 'success');
+          else Toast.show('Upload failed', 'error');
+          await loadFolder(currentFolderId);
+        }, { once: true });
+        picker.click();
+        return;
+      }
+      // Desktop path
       try {
         const uploaded = await window.electronAPI.drive.uploadFile(currentFolderId);
         if (uploaded && uploaded.length > 0) {
