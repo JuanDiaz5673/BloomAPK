@@ -65,7 +65,7 @@ const NotesView = (() => {
             </button>
           </div>
           <div class="nt-header-main">
-            <input class="notes-title-input" id="note-title" type="text" placeholder="Click here to start a new note..." style="cursor:pointer;">
+            <input class="notes-title-input" id="note-title" type="text" placeholder="Untitled note" style="cursor:pointer;">
             <div class="nt-header-actions">
               <span class="notes-save-status" id="save-status" style="display:none;">Saved</span>
               <button class="notes-delete-btn" id="delete-note-btn" title="Delete note" style="display:none;">

@@ -1030,7 +1030,12 @@ const SettingsView = (() => {
       if (!thumb) continue;
       try {
         const imgPath = await window.electronAPI.theme.getPresetPath(preset.file);
-        const src = `file://${imgPath.replace(/\\/g, '/')}`;
+        // Mobile bundles return webview-relative paths (leading "/") — don't
+        // wrap those with file:// since Capacitor serves from https://localhost.
+        const normalized = String(imgPath).replace(/\\/g, '/');
+        const src = /^(\/|https?:|file:|data:)/.test(normalized)
+          ? normalized
+          : `file://${normalized}`;
         const resized = await _getResizedThumb(src);
         const img = document.createElement('img');
         img.decoding = 'async';

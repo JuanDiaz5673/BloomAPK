@@ -285,6 +285,10 @@
       pickImage: () => _notImpl('Custom background picker'),
       listCustom: asyncArr,
       deleteCustom: asyncOk,
+      // Mobile: preset images live inside the bundled web assets.
+      // Renderer does `file://${path}` wrapping; strip that and return the
+      // relative asset URL so it resolves against the Capacitor webview origin.
+      getPresetPath: async (file) => `/assets/images/backgrounds/${file}`,
     },
   };
 

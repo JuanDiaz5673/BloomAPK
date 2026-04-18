@@ -28,6 +28,12 @@ bloom-app/android/app/src/main/res/mipmap-*/ic_launcher*.webp
 # line to stop committing APKs entirely.
 # dist/*.apk
 
+# Fuzz/screenshot artifacts from local QA runs — noisy in git, kept local
+dist/fuzz/
+
+# Claude Code local settings
+.claude/
+
 # Local signing configs — NEVER commit these
 *.keystore
 *.jks

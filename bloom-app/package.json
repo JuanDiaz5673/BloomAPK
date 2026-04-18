@@ -4,7 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "sync": "cap sync android",
+    "build:debug": "cd android && .\\gradlew.bat assembleDebug",
+    "emulator": "bash ../tools/run-emulator.sh",
+    "install": "..\\tools\\android-sdk\\platform-tools\\adb.exe install -r android/app/build/outputs/apk/debug/app-debug.apk",
+    "launch": "..\\tools\\android-sdk\\platform-tools\\adb.exe shell monkey -p com.bloom.app -c android.intent.category.LAUNCHER 1",
+    "android:dev": "npm run sync && npm run build:debug && npm run emulator && npm run install && npm run launch",
+    "logs": "..\\tools\\android-sdk\\platform-tools\\adb.exe logcat -s Capacitor:* BloomApp:* chromium:* Console:*"
   },
   "keywords": [],
   "author": "",

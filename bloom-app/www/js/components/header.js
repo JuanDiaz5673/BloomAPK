@@ -24,9 +24,10 @@ const Header = (() => {
     // Initial render — greeting (uses cached name if available)
     updateForView('home');
 
-    // Avatar → Users tab
+    // Avatar → Users tab (mobile: Settings, per mobile UX rules)
     document.getElementById('btn-avatar')?.addEventListener('click', () => {
-      Router.navigate('users');
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+      Router.navigate(isMobile ? 'settings' : 'users');
     });
 
     // Search → opens search modal (Ctrl+K shortcut also works)

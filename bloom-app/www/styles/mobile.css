@@ -28,10 +28,16 @@
     padding-bottom: var(--mobile-safe-bottom);
   }
 
-  /* Header — sticky but slimmer. */
+  /* Header — sticky but slimmer. Honor status bar safe-area on top. */
   .header {
-    padding: 14px 16px 8px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 8px;
     gap: 12px;
+  }
+  /* Header action icons (search + bell) — darken backdrop so they read
+     on bright wallpapers (sunset/aurora would make them invisible). */
+  .header-action {
+    background: rgba(0, 0, 0, 0.32) !important;
+    border: 1px solid rgba(var(--accent-primary-rgb), 0.22) !important;
   }
   .header-left h1 {
     font-size: 22px !important;
@@ -55,7 +61,7 @@
      On mobile the view-container scrolls; give it the safe-area
      bottom padding so content never hides behind the nav bar. */
   #view-container {
-    padding: 0 16px;
+    padding: 0 10px;
     padding-bottom: calc(24px + var(--mobile-safe-bottom));
   }
 
@@ -407,6 +413,41 @@
   }
 
   /* ── Study view ──────────────────────────────────────────────── */
+  /* Kill the 32px side padding so cards match the widths used on
+     Home/Calendar/Notes. Top/bottom spacing stays. */
+  .study-view {
+    padding: 12px 0 24px !important;
+    gap: 12px;
+  }
+
+  /* Flashcards sub-page back-bar — stack into 2 rows so the title,
+     back btn, sync-chip, and "+ New deck" button don't overlap. */
+  .study-backbar {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "back right"
+      "title title";
+    gap: 8px 10px;
+    padding: 4px 2px;
+  }
+  .study-backbar > .study-back-btn { grid-area: back; justify-self: start; }
+  .study-backbar > .study-backbar-title {
+    grid-area: title;
+    text-align: left;
+    font-size: 26px;
+    margin-top: 2px;
+  }
+  .study-backbar > .study-backbar-right {
+    grid-area: right;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .study-sync-chip {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+
   /* Pomodoro ring scales down to 70vw centered */
   .study-pomo-hero svg,
   .study-pomo-ring-svg {
@@ -426,17 +467,89 @@
   .settings-view input[type="text"],
   .settings-view input[type="password"],
   .settings-view select,
-  .settings-view textarea {
+  .settings-view textarea,
+  .settings-page input[type="text"],
+  .settings-page input[type="password"],
+  .settings-page select,
+  .settings-page textarea {
     min-height: 46px !important;
     font-size: 15px !important;
   }
   .settings-view button,
+  .settings-page button,
   .btn-glass,
   .btn-pink {
     min-height: 44px !important;
   }
 
+  /* ── Settings grid — collapse 2-col layout to single column ──── */
+  .settings-page {
+    padding: 8px;
+    gap: 14px;
+  }
+  .settings-grid-top,
+  .settings-grid-bottom {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .settings-section {
+    padding: 16px;
+  }
+  /* Stack label/desc above the input so nothing gets squeezed */
+  .settings-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px 0;
+  }
+  .settings-input {
+    max-width: 100%;
+    font-size: 15px;
+    padding: 10px 12px;
+  }
+  /* Keep input + inline Save button on the same row */
+  .settings-input-group {
+    width: 100%;
+    gap: 8px;
+  }
+  .settings-input-group .btn-sm {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+  /* Google "Connect" button — override the desktop inline sizing so it
+     matches the Save buttons next door. */
+  #google-connect-btn,
+  #google-disconnect-btn {
+    padding: 10px 20px !important;
+    font-size: 13px !important;
+    min-height: 44px;
+  }
+  .account-card {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .account-card .account-info {
+    min-width: 0;
+  }
+  .account-card .account-name,
+  .account-card .account-email {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   /* ── Calendar ───────────────────────────────────────────────── */
+  .calendar-view {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px;
+    min-height: calc(100vh - 64px - var(--mobile-nav-height) - var(--mobile-safe-bottom) - 24px);
+  }
+  .calendar-view > .glass-card:last-child {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
   .calendar-toolbar {
     flex-wrap: wrap;
     gap: 8px;
@@ -455,9 +568,30 @@
     width: 100%;
   }
 
-  /* ── Notes — hide the folder tree; use dropdown on mobile ────── */
+  /* ── Notes — stack both panels vertically on mobile ──────────── */
+  .notes-view {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px;
+    /* Fill viewport minus header (~64px) and bottom nav with safe-area */
+    min-height: calc(100vh - 64px - var(--mobile-nav-height) - var(--mobile-safe-bottom) - 24px);
+  }
   .notes-view .notes-sidebar {
-    display: none;
+    display: none !important;
+  }
+  .notes-view .notes-list-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 auto;
+    max-height: 32vh;
+    min-height: 180px;
+    overflow-y: auto;
+  }
+  .notes-view .notes-editor-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   /* ── Files — single column grid ─────────────────────────────── */
@@ -480,7 +614,7 @@
     --glass-blur: 14px;
     --glass-sub-blur: blur(14px) saturate(1.3);
   }
-  #view-container { padding: 0 12px; }
+  #view-container { padding: 0 8px; }
   .header { padding: 12px 12px 6px; }
   .bottom-nav-tab-label { font-size: 9px; }
 }
