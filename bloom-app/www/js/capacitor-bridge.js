@@ -52,10 +52,24 @@
   // mobile (matching desktop).
   let _aiAbortCtrl = null;
 
-  // In-memory conversations. Persisting to Filesystem is a Phase 4
-  // follow-up — for now conversations survive in-session only so the
-  // chat view can re-show history after navigating between tabs.
+  // Conversations persist to Capacitor Preferences under a single
+  // `ai.conversations` key (array of convo objects). In-memory Map is
+  // the hot path; every mutation writes the whole array back through
+  // the bridge's debounced _persistStoreKey so survives app restart.
+  // Matches desktop's "conversations live across sessions" behavior.
   const _conversations = new Map();
+  const CONVO_STORE_KEY = 'ai.conversations';
+  const CONVO_CAP = 100; // keep the last 100 — matches desktop policy
+
+  function _persistConvos() {
+    // Sort newest-first, cap, then serialize. `store.set` applies the
+    // key allowlist + Preferences write.
+    const list = Array.from(_conversations.values())
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, CONVO_CAP);
+    _persistStoreKey(CONVO_STORE_KEY, list);
+  }
+
   function _appendConvo(id, role, content) {
     if (!id) return;
     const text = typeof content === 'string'
@@ -69,6 +83,7 @@
     c.updatedAt = Date.now();
     if (!c.title && role === 'user') c.title = text.slice(0, 60);
     _conversations.set(id, c);
+    _persistConvos();
     // Fire a lightweight event so the home "Recent Conversations" card
     // (and anything else interested) can re-render without having to
     // poll listConversations. Wrapped in try/catch because some very
@@ -141,7 +156,20 @@
   // Kick off store load before any views render. Views await
   // store.get() inline, so this promise is surfaced on `window._storeReady`
   // for app.js to await too.
-  window._storeReady = _loadStoreFromDisk();
+  window._storeReady = _loadStoreFromDisk().then(() => {
+    // Once the in-memory store is hydrated, pull conversations back
+    // into the _conversations Map so listConversations / getConversation
+    // return them without a reload. The stored shape is an array —
+    // rehydrate by id.
+    try {
+      const saved = _memory.get(CONVO_STORE_KEY);
+      if (Array.isArray(saved)) {
+        for (const c of saved) {
+          if (c && c.id) _conversations.set(c.id, c);
+        }
+      }
+    } catch {}
+  });
 
   // ── Toast helper for "not yet implemented" ─────────────────────────
   function _notImpl(action) {
@@ -276,7 +304,12 @@
           // the "Recent Conversations" card doesn't always show 0.
           .map(c => ({ ...c, messageCount: Array.isArray(c.messages) ? c.messages.length : 0 })),
       getConversation: async (id) => _conversations.get(id) || null,
-      deleteConversation: async (id) => { _conversations.delete(id); return { success: true }; },
+      deleteConversation: async (id) => {
+        _conversations.delete(id);
+        _persistConvos();
+        try { window.dispatchEvent(new CustomEvent('bloom:conversations-changed', { detail: { id, role: 'deleted' } })); } catch {}
+        return { success: true };
+      },
       getProvider: async () => window._bloomAI?.getActive() ?? 'claude',
       setProvider: async (p) => window._bloomAI?.setActive(p) ?? { success: false },
       getProviderStatus: async () => window._bloomAI?.getProviderStatus() ?? {

@@ -1083,6 +1083,39 @@
     max-width: 100vw;
   }
 
+  /* ── Home "Recent *" cards: tame wrapping on long titles ─────
+     Deck names like "CompTIA Network+ N10-009 Random Practice" were
+     wrapping to 4 lines and stretching their grid row, leaving
+     shorter neighbors ("Network+") with huge empty space below.
+     Clamp every Recent card's primary label to 2 lines + ellipsis
+     so rows stay compact and cards visually align. Font-size scales
+     down a tick for denser titles. */
+  #home-flashcards .file-name,
+  #home-drive-files .file-name,
+  #home-conversations .file-name,
+  #home-notes .file-name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+    line-height: 1.25;
+  }
+  /* Bump the Recent Flashcards tile to fit 2 lines comfortably and
+     keep icon + text vertically centered for any length. */
+  #home-flashcards .file-item {
+    align-items: center;
+    min-height: 56px;
+  }
+  /* Long-name class — added by home.js when the deck name exceeds a
+     threshold so the 11px base can dip to 10px without affecting
+     shorter names. */
+  #home-flashcards .file-name.is-long {
+    font-size: 10px !important;
+    line-height: 1.2;
+  }
+  #home-flashcards .file-info { min-width: 0; }
+
   /* ── Drive file preview — drop Electron-titlebar padding ─────
      files.css sets .file-preview-header { padding-top: 36px;
      padding-right: 140px; } to clear the desktop window's traffic-

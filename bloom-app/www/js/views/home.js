@@ -338,13 +338,20 @@ const HomeView = (() => {
       const sorted = decks.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 4);
       host.innerHTML = sorted.map(d => {
         const n = Array.isArray(d.cards) ? d.cards.length : (d.cardCount || 0);
+        const name = d.name || 'Untitled deck';
+        // Names longer than ~22 chars would wrap past 2 lines at the
+        // base 11px font in the mobile grid's narrow cards. Flag them
+        // so the CSS (#home-flashcards .file-name.is-long) can step
+        // the font down to 10px, keeping the 2-line clamp + preserving
+        // the full title without ellipsifying mid-word.
+        const longCls = name.length > 22 ? ' is-long' : '';
         return `
-          <div class="file-item" style="cursor:pointer;" data-deep="deck" data-id="${_escapeHtml(d.id)}">
+          <div class="file-item" style="cursor:pointer;" data-deep="deck" data-id="${_escapeHtml(d.id)}" title="${_escapeHtml(name)}">
             <div class="file-icon doc">
               <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             </div>
             <div class="file-info">
-              <div class="file-name">${_escapeHtml(d.name || 'Untitled deck')}</div>
+              <div class="file-name${longCls}">${_escapeHtml(name)}</div>
               <div class="file-size">${n} card${n === 1 ? '' : 's'}</div>
             </div>
           </div>
