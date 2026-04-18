@@ -151,6 +151,13 @@ const Header = (() => {
 
   async function updateWithProfile() {
     if (!window.electronAPI) return;
+    // Wait for the bridge's in-memory store to hydrate from Preferences
+    // before asking getProfile() — otherwise on cold start this races
+    // ahead of _loadStoreFromDisk, reads an empty store, decides
+    // "unauthed", and silently skips painting the avatar. That was the
+    // root cause of the "profile picture sometimes doesn't show up"
+    // report.
+    try { await (window._storeReady || Promise.resolve()); } catch {}
     try {
       const profile = await window.electronAPI.google.getProfile();
       if (profile && profile.name) {
@@ -166,29 +173,36 @@ const Header = (() => {
         const h1 = document.querySelector('.header-left h1');
         if (h1) h1.textContent = `${_timeBasedGreeting()}, ${firstName}`;
 
-        // Update avatar via DOM construction (NOT innerHTML interpolation)
-        // — Google profile names + URLs are external content. A display name
-        // containing `"><script>` previously broke out of the alt attribute
-        // and ran arbitrary JS in the renderer with full electronAPI access.
-        const avatar = document.getElementById('btn-avatar');
-        if (avatar) {
-          while (avatar.firstChild) avatar.removeChild(avatar.firstChild);
-          if (profile.picture) {
-            const img = document.createElement('img');
-            // Only allow https profile URLs — Google always returns these
-            // (lh3.googleusercontent.com); anything else is suspect.
-            if (/^https:\/\//i.test(profile.picture)) {
-              img.src = profile.picture;
-            }
-            img.alt = firstName;
-            avatar.appendChild(img);
-          } else {
-            avatar.textContent = firstName.charAt(0).toUpperCase();
-          }
-        }
+        _paintAvatar(profile.picture, firstName);
       }
     } catch (err) {
       // Not connected, use defaults
+    }
+  }
+
+  // Paint the avatar with graceful fallback: if the image fails to
+  // load (CDN hiccup, transient network, stale URL after a token
+  // refresh), swap in the first-letter initial instead of leaving an
+  // empty circle. Also used by restoreCachedAvatar.
+  function _paintAvatar(pictureUrl, firstName) {
+    const avatar = document.getElementById('btn-avatar');
+    if (!avatar) return;
+    while (avatar.firstChild) avatar.removeChild(avatar.firstChild);
+    const initial = (firstName || '').charAt(0).toUpperCase() || '·';
+    if (pictureUrl && /^https:\/\//i.test(pictureUrl)) {
+      const img = document.createElement('img');
+      img.src = pictureUrl;
+      img.alt = firstName || '';
+      img.referrerPolicy = 'no-referrer'; // Google CDN rejects some referrers
+      img.onerror = () => {
+        if (avatar.firstChild === img) {
+          avatar.removeChild(img);
+          avatar.textContent = initial;
+        }
+      };
+      avatar.appendChild(img);
+    } else {
+      avatar.textContent = initial;
     }
   }
 
@@ -196,28 +210,38 @@ const Header = (() => {
   async function restoreCachedAvatar() {
     if (!window.electronAPI) return;
     try {
+      try { await (window._storeReady || Promise.resolve()); } catch {}
       const avatarUrl = await window.electronAPI.store.get('user.avatarUrl');
       const firstName = await window.electronAPI.store.get('user.firstName');
       const avatar = document.getElementById('btn-avatar');
       if (!avatar) return;
-      while (avatar.firstChild) avatar.removeChild(avatar.firstChild);
-      if (avatarUrl) {
-        // DOM construction (not innerHTML) — same XSS reason as updateWithProfile.
-        // Cached value comes from the store; if any other code path persists a
-        // poisoned URL, we still don't reflect it as raw HTML.
-        const img = document.createElement('img');
-        if (/^https:\/\//i.test(avatarUrl)) img.src = avatarUrl;
-        img.alt = '';
-        avatar.appendChild(img);
-      } else if (firstName) {
-        avatar.textContent = firstName.charAt(0).toUpperCase();
+      if (avatarUrl || firstName) {
+        _paintAvatar(avatarUrl, firstName);
       } else {
-        // No cached profile — neutral placeholder icon. The SVG is a static
-        // string we control, so innerHTML is safe here.
+        // No cached profile — neutral placeholder silhouette.
+        while (avatar.firstChild) avatar.removeChild(avatar.firstChild);
         avatar.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
       }
     } catch {}
   }
+
+  function _resetAvatar() {
+    const avatar = document.getElementById('btn-avatar');
+    if (!avatar) return;
+    while (avatar.firstChild) avatar.removeChild(avatar.firstChild);
+    avatar.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+    const h1 = document.querySelector('.header-left h1');
+    if (h1) h1.textContent = _timeBasedGreeting();
+  }
+
+  // Auto-refresh the header on sign-in / sign-out from anywhere in the
+  // app. Previously only three explicit callers (app bootstrap, setup
+  // wizard, Settings) invoked updateWithProfile(), so e.g. signing in
+  // from a path we forgot to cover left the avatar stuck on the
+  // silhouette until the next cold start. Registered once at module
+  // load — survives view teardowns.
+  window.addEventListener('bloom:google-connected', () => updateWithProfile());
+  window.addEventListener('bloom:google-disconnected', () => _resetAvatar());
 
   return { init, destroy, updateGreeting, updateWithProfile, restoreCachedAvatar };
 })();
