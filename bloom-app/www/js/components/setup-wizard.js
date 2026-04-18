@@ -24,7 +24,20 @@ const SetupWizard = (() => {
     if (!window.electronAPI) return false;
     try {
       const done = await window.electronAPI.store.get('hasCompletedSetup');
-      return !done;
+      if (done) return false;
+      // If the user already has a Google session (e.g. they completed
+      // sign-in in a previous install and their Preferences carried
+      // over via the desktop sync, or the setup flag got lost), skip
+      // the wizard entirely and mark setup complete so it never shows
+      // again. Fresh installs have no token → wizard appears normally.
+      try {
+        const status = await window.electronAPI.google.getStatus();
+        if (status?.authenticated) {
+          await markComplete();
+          return false;
+        }
+      } catch { /* getStatus failures → fall through and show wizard */ }
+      return true;
     } catch {
       return false;
     }
@@ -283,10 +296,13 @@ const SetupWizard = (() => {
       const thumbnailHTMLs = await Promise.all(presets.map(async (preset) => {
         try {
           const path = await window.electronAPI.theme.getPresetPath(preset);
-          // Both `preset` (literal from the array) and `path` (from main process)
-          // are escaped defensively — if either gets refactored to come from
-          // user input later, this won't suddenly become an XSS vector.
-          return `<div class="setup-theme-item" data-preset="${_escape(preset)}" style="background-image:url('file:///${_escape(path).replace(/'/g, '%27')}');"></div>`;
+          // Desktop returns an absolute filesystem path → needs file:// scheme.
+          // Mobile bridge returns an http(s)-servable URL (absolute or
+          // relative to the webview origin) → use as-is. Detecting by
+          // whether the path starts with a URL scheme or a web-root "/".
+          const isWebUrl = /^(https?:|\/)/i.test(path);
+          const url = isWebUrl ? path : `file:///${path}`;
+          return `<div class="setup-theme-item" data-preset="${_escape(preset)}" style="background-image:url('${_escape(url).replace(/'/g, '%27')}');"></div>`;
         } catch {
           return '';
         }
