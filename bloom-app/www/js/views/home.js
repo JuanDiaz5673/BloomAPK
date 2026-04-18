@@ -265,6 +265,13 @@ const HomeView = (() => {
     }, 400);
   }
 
+  // Re-fetch when Google sign-in completes from anywhere (setup wizard,
+  // settings page, etc.). The home view is usually rendered before the
+  // user has connected, so its first loadDashboardData call returns the
+  // unauthed placeholders; this event repaints the cards as soon as a
+  // token exists.
+  window.addEventListener('bloom:google-connected', () => _debouncedRefetch());
+
   let _notesChangedCleanup = null;
   function _attachNotesChangedListener() {
     if (_notesChangedCleanup) _notesChangedCleanup();

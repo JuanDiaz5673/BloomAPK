@@ -214,6 +214,13 @@
       await store?.set(EXPIRY_KEY, Date.now() + tokens.expires_in * 1000);
     }
     await store?.set(PROFILE_KEY, profile);
+    // Notify any open view (home cards, sidebar, etc.) to re-fetch.
+    // Without this, home.js's listEvents/listNotes/etc. ran ONCE during
+    // setup-wizard time when getStatus() was still false, so the cards
+    // stayed on their "Connect Google" placeholders until a tab switch.
+    try {
+      window.dispatchEvent(new CustomEvent('bloom:google-connected', { detail: { profile } }));
+    } catch {}
     return { success: true, profile };
   }
 
