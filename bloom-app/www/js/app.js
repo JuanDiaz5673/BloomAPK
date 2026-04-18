@@ -99,6 +99,10 @@
     await Header.restoreCachedAvatar?.();
     if (typeof Notifications !== 'undefined') Notifications.init();
 
+    // ── Android-only: hardware back button + StatusBar theme sync ──
+    // See js/mobile/native-integration.js (auto-loaded via index.html)
+    if (typeof NativeIntegration !== 'undefined') NativeIntegration.init();
+
     // ── Auto-resume the most recent Bloom conversation ──
     // Without this, every app launch starts a brand-new conversation —
     // including after an API key reset / dev reload — and the home chat,

@@ -1,3 +1,19 @@
+# ── Bloom / Capacitor 6 keep rules ──────────────────────────────────
+# R8 strips unused classes aggressively; Capacitor + any dynamically-
+# loaded plugin needs explicit keep rules or their native bridges get
+# obfuscated out and nothing fires at runtime.
+-keep class com.getcapacitor.** { *; }
+-keep class com.capacitorjs.plugins.** { *; }
+-keep class * extends com.getcapacitor.Plugin { *; }
+-keepclassmembers class * extends com.getcapacitor.Plugin {
+    @com.getcapacitor.PluginMethod public *;
+}
+# Google Sign-In (Phase 3)
+-keep class com.google.android.gms.** { *; }
+-keep class com.codetrixstudio.capacitor.GoogleAuth.** { *; }
+# App itself
+-keep class com.bloom.app.** { *; }
+
 # Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
 # proguardFiles setting in build.gradle.

@@ -26,7 +26,50 @@
   const asyncArr = async () => [];
   const asyncFalse = async () => false;
   const asyncOk = async () => ({ success: true });
-  const listenerRet = () => noop; // remove-listener fn
+
+  // ── Event bus for stream-* listeners ──────────────────────────────
+  // Desktop uses IPC (`ipcRenderer.on('claude:stream-delta', cb)`).
+  // We emulate the same callback contract here so the renderer's
+  // chat/panel/sheet listeners keep working unchanged.
+  const _listeners = Object.create(null);
+  function _on(channel, cb) {
+    if (typeof cb !== 'function') return noop;
+    (_listeners[channel] ||= new Set()).add(cb);
+    return () => _listeners[channel]?.delete(cb);
+  }
+  function _emit(channel, payload) {
+    _listeners[channel]?.forEach(cb => {
+      try { cb(payload); } catch (err) { console.error(`[bridge] listener for ${channel} threw:`, err); }
+    });
+  }
+
+  // Legacy stub for listeners we haven't wired up yet — keeps the
+  // "remove-listener" contract intact so callers can still call the
+  // returned cleanup function safely.
+  const listenerRet = () => noop;
+
+  // In-flight AI stream abort handle. Only one stream at a time on
+  // mobile (matching desktop).
+  let _aiAbortCtrl = null;
+
+  // In-memory conversations. Persisting to Filesystem is a Phase 4
+  // follow-up — for now conversations survive in-session only so the
+  // chat view can re-show history after navigating between tabs.
+  const _conversations = new Map();
+  function _appendConvo(id, role, content) {
+    if (!id) return;
+    const text = typeof content === 'string'
+      ? content
+      : Array.isArray(content)
+        ? content.map(b => b?.text || '').filter(Boolean).join('\n')
+        : String(content || '');
+    if (!text) return;
+    const c = _conversations.get(id) || { id, createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
+    c.messages.push({ role, content: text, at: Date.now() });
+    c.updatedAt = Date.now();
+    if (!c.title && role === 'user') c.title = text.slice(0, 60);
+    _conversations.set(id, c);
+  }
 
   // Track which platform is serving up the bridge, so app code can
   // conditionally short-circuit flows that we KNOW are unimplemented
@@ -142,59 +185,121 @@
       close: noop,
     },
 
-    // ── AI providers (all return "configure key" or empty) ──
+    // ── AI providers (Phase 2: real streaming for all 3) ──
+    // The heavy lifting lives in js/mobile/ai-providers.js (loaded
+    // before this bridge). This section just wires the renderer's
+    // expected `electronAPI.ai.*` surface to that module + our
+    // in-memory conversation store.
     ai: {
-      streamChat: () => _notImpl('AI chat'),
-      stopStream: asyncOk,
-      generateGreeting: async () => null, // app.js falls back to canned greeting
-      listConversations: asyncArr,
-      getConversation: asyncNull,
-      deleteConversation: asyncOk,
-      getProvider: async () => 'claude',
-      setProvider: asyncOk,
-      getProviderStatus: async () => ({
-        claude: { hasKey: false },
-        gemini: { hasKey: false },
-        openrouter: { hasKey: false },
-      }),
-      hasAnyProvider: asyncFalse,
-      onStreamDelta: listenerRet,
-      onStreamDone: listenerRet,
-      onStreamError: listenerRet,
-      onToolUse: listenerRet,
+      streamChat: async (messages, conversationId /*, browserWindow */) => {
+        const AI = window._bloomAI;
+        if (!AI) return { success: false, error: 'AI module not loaded' };
+        // Abort any in-flight stream — same semantics as desktop.
+        if (_aiAbortCtrl) try { _aiAbortCtrl.abort(); } catch { /* ignore */ }
+        _aiAbortCtrl = new AbortController();
+        const signal = _aiAbortCtrl.signal;
+        const emit = _emit;
+        try {
+          const provider = await AI.getActive();
+          _appendConvo(conversationId, 'user', messages[messages.length - 1]?.content);
+          const streamer =
+            provider === 'claude' ? AI.streamClaude :
+            provider === 'gemini' ? AI.streamGemini :
+            provider === 'openrouter' ? AI.streamOpenRouter : null;
+          if (!streamer) throw new Error(`Unknown AI provider: ${provider}`);
+          // We capture the assistant text via a side-listener so we
+          // can save it when the stream completes.
+          let assistantText = '';
+          const offDelta = _on('claude:stream-delta', (d) => {
+            if (d?.conversationId === conversationId) assistantText += d.text || '';
+          });
+          const offDone = _on('claude:stream-done', (d) => {
+            if (d?.conversationId === conversationId && assistantText) {
+              _appendConvo(conversationId, 'assistant', assistantText);
+            }
+            offDelta(); offDone();
+          });
+          await streamer({ messages, conversationId, signal, emit });
+          return { success: true };
+        } catch (err) {
+          if (err?.name === 'AbortError') return { success: false, error: 'Aborted' };
+          console.error('[bridge] streamChat failed:', err);
+          emit('claude:stream-error', { error: String(err?.message || err), conversationId });
+          return { success: false, error: String(err?.message || err) };
+        }
+      },
+      stopStream: async () => {
+        if (_aiAbortCtrl) try { _aiAbortCtrl.abort(); } catch { /* ignore */ }
+        _aiAbortCtrl = null;
+        return { success: true };
+      },
+      // Generate a quick greeting — desktop runs a tiny Claude call
+      // that reads user profile. Mobile just returns null and lets
+      // app.js use its canned fallback until we add greeting
+      // generation properly.
+      generateGreeting: async () => null,
+      listConversations: async () => Array.from(_conversations.values()).sort((a, b) => b.updatedAt - a.updatedAt),
+      getConversation: async (id) => _conversations.get(id) || null,
+      deleteConversation: async (id) => { _conversations.delete(id); return { success: true }; },
+      getProvider: async () => window._bloomAI?.getActive() ?? 'claude',
+      setProvider: async (p) => window._bloomAI?.setActive(p) ?? { success: false },
+      getProviderStatus: async () => window._bloomAI?.getProviderStatus() ?? {
+        active: 'claude',
+        providers: {
+          claude: { hasKey: false, label: 'Claude Haiku 4.5', description: 'Anthropic · paid' },
+          gemini: { hasKey: false, label: 'Gemini 2.5 Flash', description: 'Google · free' },
+          openrouter: { hasKey: false, label: 'Qwen 3 (OpenRouter)', description: 'Qwen · free' },
+        },
+      },
+      hasAnyProvider: async () => window._bloomAI?.hasAny() ?? false,
+      onStreamDelta: (cb) => _on('claude:stream-delta', cb),
+      onStreamDone: (cb) => _on('claude:stream-done', cb),
+      onStreamError: (cb) => _on('claude:stream-error', cb),
+      onToolUse: (cb) => _on('claude:tool-use', cb),
     },
     claude: {
-      setApiKey: () => _notImpl('Claude key setup'),
-      validateKey: asyncFalse,
-      getApiKeyStatus: async () => ({ hasKey: false }),
-      getApiKeyPreview: async () => '',
-      streamChat: () => _notImpl('AI chat'),
-      stopStream: asyncOk,
+      setApiKey: async (key) => window._bloomAI?.setKey('claude', key) ?? { success: false },
+      validateKey: async () => window._bloomAI?.validateKey('claude') ?? false,
+      getApiKeyStatus: async () => ({ hasKey: await (window._bloomAI?.hasKey('claude') ?? false) }),
+      getApiKeyPreview: async () => window._bloomAI?.getKeyPreview('claude') ?? '',
+      streamChat: (...args) => api.ai.streamChat(...args),
+      stopStream: () => api.ai.stopStream(),
       generateGreeting: async () => null,
-      listConversations: asyncArr,
-      getConversation: asyncNull,
-      deleteConversation: asyncOk,
+      listConversations: () => api.ai.listConversations(),
+      getConversation: (id) => api.ai.getConversation(id),
+      deleteConversation: (id) => api.ai.deleteConversation(id),
     },
     gemini: {
-      setApiKey: () => _notImpl('Gemini key setup'),
-      validateKey: asyncFalse,
-      getApiKeyStatus: async () => ({ hasKey: false }),
-      getApiKeyPreview: async () => '',
+      setApiKey: async (key) => window._bloomAI?.setKey('gemini', key) ?? { success: false },
+      validateKey: async () => window._bloomAI?.validateKey('gemini') ?? false,
+      getApiKeyStatus: async () => ({ hasKey: await (window._bloomAI?.hasKey('gemini') ?? false) }),
+      getApiKeyPreview: async () => window._bloomAI?.getKeyPreview('gemini') ?? '',
     },
     openrouter: {
-      setApiKey: () => _notImpl('OpenRouter key setup'),
-      validateKey: asyncFalse,
-      getApiKeyStatus: async () => ({ hasKey: false }),
-      getApiKeyPreview: async () => '',
-      getModel: async () => 'qwen/qwen3-coder:free',
-      setModel: asyncOk,
+      setApiKey: async (key) => window._bloomAI?.setKey('openrouter', key) ?? { success: false },
+      validateKey: async () => window._bloomAI?.validateKey('openrouter') ?? false,
+      getApiKeyStatus: async () => ({ hasKey: await (window._bloomAI?.hasKey('openrouter') ?? false) }),
+      getApiKeyPreview: async () => window._bloomAI?.getKeyPreview('openrouter') ?? '',
+      getModel: async () => window._bloomAI?.getOpenRouterModel() ?? 'qwen/qwen3-coder:free',
+      setModel: async (m) => window._bloomAI?.setOpenRouterModel(m) ?? { success: false },
     },
 
-    // ── Google (auth, calendar, drive, notes) ──
+    // ── Google (Phase 3 — scaffold only; awaiting OAuth client ID) ──
+    // signIn fires the real plugin — throws a helpful error if the
+    // user hasn't set up capacitor.config.json yet. See
+    // js/mobile/google-auth.js + HANDOFF.md for the full setup flow.
+    // Calendar/Drive/Notes are still stubs until Phase 3 completes.
     google: {
-      getStatus: async () => ({ authenticated: false }),
-      signIn: () => _notImpl('Google sign-in'),
-      signOut: asyncOk,
+      getStatus: () => window._bloomGoogle?.getStatus() ?? { authenticated: false },
+      signIn: async () => {
+        try {
+          return await window._bloomGoogle?.signIn();
+        } catch (err) {
+          if (window.Toast?.show) window.Toast.show(String(err?.message || err), 'error', 5000);
+          throw err;
+        }
+      },
+      signOut: () => window._bloomGoogle?.signOut() ?? { success: true },
       listCalendars: asyncArr,
       listEvents: asyncArr,
       createEvent: () => _notImpl('Calendar event creation'),
@@ -225,35 +330,37 @@
       onChanged: listenerRet,
     },
 
-    // ── Study ──
+    // ── Study ── (Phase 4: Capacitor Filesystem-backed)
+    // Implementations live in js/mobile/study-store.js. Desktop-browser
+    // preview (where Filesystem plugin is absent) gracefully falls
+    // back to empty arrays via the store's internal no-op paths.
     study: {
-      listDecks: asyncArr,
-      getDeck: asyncNull,
-      createDeck: async ({ name } = {}) => _notImpl('Deck creation'),
-      updateDeck: asyncOk,
-      deleteDeck: asyncOk,
-      addCard: () => _notImpl('Add card'),
-      updateCard: asyncOk,
-      deleteCard: asyncOk,
-      recordReview: asyncOk,
-      getDueCards: asyncArr,
-      logSession: asyncOk,
-      getStats: async () => ({
+      listDecks: () => window._bloomStudy?.listDecks() ?? [],
+      getDeck: (id) => window._bloomStudy?.getDeck(id) ?? null,
+      createDeck: (args) => window._bloomStudy?.createDeck(args) ?? null,
+      updateDeck: (id, patch) => window._bloomStudy?.updateDeck(id, patch) ?? { success: false },
+      deleteDeck: (id) => window._bloomStudy?.deleteDeck(id) ?? { success: false },
+      addCard: (deckId, card) => window._bloomStudy?.addCard(deckId, card) ?? null,
+      updateCard: (deckId, cardId, patch) => window._bloomStudy?.updateCard(deckId, cardId, patch) ?? { success: false },
+      deleteCard: (deckId, cardId) => window._bloomStudy?.deleteCard(deckId, cardId) ?? { success: false },
+      recordReview: (deckId, cardId, grade) => window._bloomStudy?.recordReview(deckId, cardId, grade) ?? { success: false },
+      getDueCards: (deckId) => window._bloomStudy?.getDueCards(deckId) ?? [],
+      logSession: (entry) => window._bloomStudy?.logSession(entry) ?? { success: false },
+      getStats: () => window._bloomStudy?.getStats() ?? {
         today: { focusMin: 0, cardsReviewed: 0, cyclesCompleted: 0, date: new Date().toLocaleDateString('sv-SE') },
         week: Array.from({ length: 7 }, (_, i) => {
           const d = new Date(); d.setDate(d.getDate() - (6 - i));
           return { date: d.toLocaleDateString('sv-SE'), focusMin: 0, cardsReviewed: 0 };
         }),
-        streak: 0,
-        total: { focusMin: 0, cardsReviewed: 0 },
-        goal: { dailyMin: 30 },
-      }),
-      getPrefs: async () => ({
+        streak: 0, total: { focusMin: 0, cardsReviewed: 0 }, goal: { dailyMin: 30 },
+      },
+      getPrefs: () => window._bloomStudy?.getPrefs() ?? {
         focus: 25, shortBreak: 5, longBreak: 15, longBreakEvery: 4,
         dailyGoalMin: 30, newCardsPerDay: 500, soundEnabled: true,
         today: { date: new Date().toLocaleDateString('sv-SE'), focusMin: 0, cyclesCompleted: 0, cardsReviewed: 0 },
-      }),
-      setPrefs: asyncOk,
+      },
+      setPrefs: (patch) => window._bloomStudy?.setPrefs(patch) ?? { success: false },
+      // Drive sync is Phase 3/4 follow-up — needs Google auth.
       syncNow: asyncOk,
       getSyncStatus: async () => ({ state: 'disabled', authed: false, pendingCount: 0, message: 'Sync comes with Google sign-in' }),
       onDecksChanged: listenerRet,

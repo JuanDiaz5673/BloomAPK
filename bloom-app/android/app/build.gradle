@@ -16,10 +16,42 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release signing — reads from keystore.properties at the project
+    // root. That file is gitignored and must be created locally after
+    // generating bloom-release.keystore. See PHASE_SETUP.md → Phase 5.
+    //
+    // Layout expected (keystore.properties sibling of this file):
+    //   storeFile=../../../bloom-release.keystore
+    //   storePassword=...
+    //   keyAlias=bloom
+    //   keyPassword=...
+    def keystorePropsFile = rootProject.file("keystore.properties")
+    def hasReleaseKeystore = keystorePropsFile.exists()
+    def keystoreProps = new Properties()
+    if (hasReleaseKeystore) {
+        keystoreProps.load(new FileInputStream(keystorePropsFile))
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
+            // Enable R8 shrinking + resource pruning to cut ~20-30% off the APK.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
