@@ -278,7 +278,7 @@ const SettingsView = (() => {
               <svg viewBox="0 0 24 24" width="22" height="22" stroke="white" stroke-width="1.8" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
             </div>
             <div>
-              <div style="font-size:15px;font-weight:400;">AllDash</div>
+              <div style="font-size:15px;font-weight:400;">Bloom</div>
               <div style="font-size:11px;color:var(--text-muted);font-weight:300;" id="app-version">v1.0.0</div>
             </div>
           </div>

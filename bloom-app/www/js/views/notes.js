@@ -55,6 +55,11 @@ const NotesView = (() => {
              only when no icon exists — matching Notion's invisible-until-
              hover pattern. -->
         <div class="notes-editor-header" id="notes-editor-header">
+          <!-- Mobile-only back arrow: returns to the notes list view.
+               Hidden on desktop via mobile.css scope. -->
+          <button class="notes-mobile-back" id="notes-mobile-back" title="Back to notes" style="display:none;">
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
           <div class="nt-header-icon-slot" id="nt-header-icon-slot">
             <button class="nt-page-icon" id="nt-page-icon" title="Change icon">
               <span class="nt-page-icon-emoji" id="nt-page-icon-emoji"></span>
@@ -106,6 +111,9 @@ const NotesView = (() => {
     document.getElementById('notes-empty')?.addEventListener('click', createNote);
     document.getElementById('note-title')?.addEventListener('input', () => scheduleSave());
     document.getElementById('delete-note-btn')?.addEventListener('click', deleteNote);
+    document.getElementById('notes-mobile-back')?.addEventListener('click', () => {
+      document.querySelector('.notes-view')?.classList.remove('is-mobile-editing');
+    });
     document.getElementById('nt-footer-add')?.addEventListener('click', _addSubPageFromFooter);
     // Both the big emoji (change it) and the +Add icon placeholder open the picker
     const openIconPicker = (e) => {
@@ -1221,6 +1229,8 @@ const NotesView = (() => {
       });
 
       _applyPageIconUI();
+      // Mobile: switch from list view → editor view (full-screen)
+      document.querySelector('.notes-view')?.classList.add('is-mobile-editing');
       // Legacy notes that had an emoji set BEFORE we added the Drive
       // appProperties mirror won't show their icon in the sidebar via
       // listNotes (because appProperties was empty). When loadNote fetches

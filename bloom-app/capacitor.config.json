@@ -33,18 +33,6 @@
       "smallIcon": "ic_stat_icon_config_sample",
       "iconColor": "#ff4d8b",
       "sound": "beep.wav"
-    },
-    "GoogleAuth": {
-      "_comment": "Paste your Android OAuth client ID here after creating one at https://console.cloud.google.com/apis/credentials. Package: com.bloom.app. Get the SHA-1 via: keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android",
-      "clientId": "YOUR_ANDROID_OAUTH_CLIENT_ID.apps.googleusercontent.com",
-      "scopes": [
-        "profile",
-        "email",
-        "https://www.googleapis.com/auth/calendar.readonly",
-        "https://www.googleapis.com/auth/calendar.events",
-        "https://www.googleapis.com/auth/drive.file"
-      ],
-      "forceCodeForRefreshToken": true
     }
   }
 }

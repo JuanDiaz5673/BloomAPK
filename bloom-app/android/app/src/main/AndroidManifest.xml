@@ -18,6 +18,16 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- OAuth redirect for our Desktop OAuth client. Google
+                 generates this scheme from the client ID — it is the
+                 documented redirect format for installed apps using
+                 Desktop-type OAuth clients. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.googleusercontent.apps.527904723284-b79etfju8a8mfdv50rft7gvqiniu373v" />
+            </intent-filter>
         </activity>
 
         <provider

@@ -297,7 +297,7 @@ const ChatView = (() => {
     } else {
       // Not in Electron - show demo response
       typing.remove();
-      appendMessageBubble('assistant', "I'm Bloom! To use me fully, run AllDash as a desktop app with your Claude API key configured in Settings.");
+      appendMessageBubble('assistant', "I'm Bloom! To use me fully, configure your Claude API key in Settings.");
     }
   }
 

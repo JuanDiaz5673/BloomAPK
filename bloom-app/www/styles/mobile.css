@@ -589,13 +589,226 @@
     min-height: 0;
   }
   .calendar-toolbar {
-    flex-wrap: wrap;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+  /* Row 1: < title > on the left, Today pill on the right */
+  .calendar-toolbar .calendar-nav {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100%;
     gap: 8px;
+  }
+  /* Reorder: prev, title, next, today */
+  .calendar-toolbar .calendar-nav #cal-prev { order: 1; }
+  .calendar-toolbar .calendar-nav #cal-title { order: 2; flex: 1; text-align: center; font-size: 18px !important; }
+  .calendar-toolbar .calendar-nav #cal-next { order: 3; }
+  .calendar-toolbar .calendar-nav #cal-today {
+    order: 4;
+    width: auto !important;
+    height: 32px !important;
+    padding: 0 14px !important;
+    font-size: 10px !important;
+    letter-spacing: 0.6px !important;
+    border-radius: 16px !important;
+    background: rgba(var(--accent-primary-rgb), 0.12) !important;
+    border-color: rgba(var(--accent-primary-rgb), 0.25) !important;
+  }
+  .calendar-toolbar .calendar-nav #cal-prev,
+  .calendar-toolbar .calendar-nav #cal-next {
+    width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0;
+  }
+  /* Row 2: full-width segmented control */
+  .calendar-view-toggle {
+    width: 100%;
+    display: flex;
   }
   .calendar-view-toggle .view-toggle-btn {
     flex: 1;
-    min-height: 40px;
+    min-height: 36px;
     font-size: 11px;
+  }
+  /* ── Mobile calendar redesign ─────────────────────────────────────
+     Phone-width screens can't fit FullCalendar's desktop event chips
+     legibly. Strategy: hide the chip text in the grid, replace with
+     small colored dots under each day number (max 3 visible). When the
+     user taps a day, a list of that day's events appears in the panel
+     below the grid (rendered by calendar.js). */
+  .calendar-view > .glass-card:last-child {
+    height: auto !important;
+    min-height: unset !important;
+    flex: 0 0 auto !important;
+  }
+  .calendar-container {
+    height: calc(100vh - 64px - 110px - var(--mobile-safe-bottom) - 220px) !important;
+    min-height: 280px;
+    overflow: hidden !important;
+  }
+  /* Day cells: tighter, centered day number */
+  .calendar-container .fc-daygrid-day-frame {
+    padding: 4px 0 2px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+  .calendar-container .fc-daygrid-day-top {
+    flex-direction: row !important;
+    justify-content: center !important;
+  }
+  .calendar-container .fc-daygrid-day-number {
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    padding: 4px 0 !important;
+    color: var(--text-primary);
+    width: 28px;
+    height: 28px;
+    line-height: 20px;
+    border-radius: 50%;
+    text-align: center;
+  }
+  .calendar-container .fc-day-today .fc-daygrid-day-number {
+    background: linear-gradient(135deg, var(--accent-pink), var(--accent-rose));
+    color: #fff !important;
+    font-weight: 500 !important;
+    box-shadow: 0 2px 8px rgba(var(--accent-primary-rgb), 0.35);
+  }
+  .calendar-container .is-mobile-selected .fc-daygrid-day-number {
+    border: 1.5px solid var(--accent-pink);
+  }
+  .calendar-container .fc-day-other .fc-daygrid-day-number {
+    color: var(--text-muted);
+    opacity: 0.4;
+  }
+  /* Hide the actual chip body. We'll show dots instead via JS-added
+     classes (calendar.js applies has-events / event-count-N). */
+  .calendar-container .fc-daygrid-day-events,
+  .calendar-container .fc-daygrid-event-harness,
+  .calendar-container .fc-daygrid-more-link {
+    display: none !important;
+  }
+  /* Event-count dot row (added by calendar.js into .fc-daygrid-day-bottom) */
+  .calendar-container .mobile-event-dots {
+    display: flex;
+    gap: 3px;
+    justify-content: center;
+    margin-top: 2px;
+    min-height: 6px;
+  }
+  .calendar-container .mobile-event-dots .dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent-pink);
+    box-shadow: 0 1px 3px rgba(var(--accent-primary-rgb), 0.4);
+  }
+  .calendar-container .mobile-event-dots .dot.holiday {
+    background: #fd9a6c;
+  }
+  /* Header row days (SUN MON…) */
+  .calendar-container .fc-col-header-cell-cushion {
+    font-size: 10px !important;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-muted) !important;
+    font-weight: 400 !important;
+  }
+  /* Selected-day strip shown under the grid */
+  #mobile-day-events { display: block !important; }
+  .mobile-day-events {
+    margin-top: 14px;
+    padding: 16px 18px 14px;
+    border-radius: 20px;
+    background: rgba(var(--accent-primary-rgb), 0.06);
+    backdrop-filter: var(--glass-sub-blur);
+    -webkit-backdrop-filter: var(--glass-sub-blur);
+    border: 1px solid rgba(var(--accent-muted-rgb), 0.12);
+    max-height: 240px;
+    overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  }
+  .mobile-day-events-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+    font-weight: 400;
+    margin: 0 0 4px;
+    letter-spacing: 0.3px;
+    background: linear-gradient(135deg, #fff 30%, var(--accent-blush));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .mobile-day-events-count {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .mobile-day-events-empty {
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 300;
+    text-align: center;
+    padding: 18px 0 10px;
+    font-style: italic;
+    opacity: 0.7;
+  }
+  .mobile-day-event-row {
+    display: flex;
+    gap: 12px;
+    padding: 10px 6px;
+    border-bottom: 1px solid rgba(var(--accent-muted-rgb), 0.07);
+    align-items: stretch;
+    cursor: pointer;
+    transition: background 0.18s ease;
+    border-radius: 8px;
+  }
+  .mobile-day-event-row:active {
+    background: rgba(var(--accent-primary-rgb), 0.08);
+  }
+  .mobile-day-event-row:last-child { border-bottom: none; }
+  .mobile-day-event-accent {
+    width: 3px;
+    border-radius: 2px;
+    background: var(--accent-pink);
+    flex-shrink: 0;
+    align-self: stretch;
+  }
+  .mobile-day-event-time {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent-blush);
+    min-width: 46px;
+    line-height: 1.4;
+    padding-top: 2px;
+    font-variant-numeric: tabular-nums;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .mobile-day-event-body { flex: 1; min-width: 0; }
+  .mobile-day-event-title {
+    font-size: 13.5px;
+    color: var(--text-primary);
+    font-weight: 400;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .mobile-day-event-loc {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 300;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* ── Chat view — hide the conversation sidebar on mobile ─────── */
@@ -606,30 +819,82 @@
     width: 100%;
   }
 
-  /* ── Notes — stack both panels vertically on mobile ──────────── */
+  /* ── Notes — single-pane mobile pattern ──────────────────────────
+     One thing at a time: the list takes the full screen; tapping a
+     note swaps to the editor (also full screen) with a back arrow.
+     The class .is-mobile-editing on .notes-view is toggled by
+     loadNote() / the back button in notes.js. */
   .notes-view {
     display: flex !important;
     flex-direction: column !important;
-    gap: 10px;
-    /* Fill viewport minus header (~64px) and bottom nav with safe-area */
-    min-height: calc(100vh - 64px - var(--mobile-nav-height) - var(--mobile-safe-bottom) - 24px);
+    gap: 0 !important;
+    min-height: calc(100vh - 64px - var(--mobile-safe-bottom) - 16px);
+    position: relative;
   }
-  .notes-view .notes-sidebar {
-    display: none !important;
-  }
-  .notes-view .notes-list-panel {
-    width: 100% !important;
-    max-width: 100% !important;
-    flex: 0 0 auto;
-    max-height: 32vh;
-    min-height: 180px;
-    overflow-y: auto;
-  }
+  .notes-view .notes-sidebar { display: none !important; }
+  .notes-view .notes-list-panel,
   .notes-view .notes-editor-panel {
     width: 100% !important;
     max-width: 100% !important;
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+  /* Default: list visible, editor hidden */
+  .notes-view .notes-editor-panel { display: none !important; }
+  /* Editing: editor full-screen, list hidden */
+  .notes-view.is-mobile-editing .notes-list-panel { display: none !important; }
+  .notes-view.is-mobile-editing .notes-editor-panel { display: flex !important; }
+
+  /* Back arrow — visible only on mobile, only inside editor */
+  .notes-mobile-back {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: rgba(var(--accent-primary-rgb), 0.08);
+    border: 1px solid rgba(var(--accent-muted-rgb), 0.12);
+    color: var(--text-primary);
+    cursor: pointer;
+    margin-right: 8px;
+    flex-shrink: 0;
+    transition: background 0.18s ease;
+  }
+  .notes-mobile-back:active {
+    background: rgba(var(--accent-primary-rgb), 0.18);
+  }
+  .notes-editor-header {
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+  }
+
+  /* Editor toolbar — horizontal scroll instead of wrapping. Hide
+     scrollbar; let the user swipe. */
+  .notes-editor-panel .tt-toolbar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    padding: 6px 8px !important;
+    gap: 4px !important;
+  }
+  .notes-editor-panel .tt-toolbar::-webkit-scrollbar { display: none; }
+  .notes-editor-panel .tt-btn,
+  .notes-editor-panel .tt-seg {
+    flex-shrink: 0;
+  }
+
+  /* Title input — bigger and editorial on mobile */
+  .notes-editor-panel .notes-title-input {
+    font-size: 22px !important;
+  }
+
+  /* List rows — taller tap targets */
+  .notes-list-panel .notes-list-item {
+    min-height: 48px;
+    padding: 10px 12px !important;
   }
 
   /* ── Files — single column grid ─────────────────────────────── */

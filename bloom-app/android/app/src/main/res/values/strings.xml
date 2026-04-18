@@ -4,4 +4,8 @@
     <string name="title_activity_main">Bloom</string>
     <string name="package_name">com.bloom.app</string>
     <string name="custom_url_scheme">com.bloom.app</string>
+    <!-- Google Sign-In fallback: @codetrix-studio/capacitor-google-auth's initialize()
+         reads capacitor.config.json first, then falls back to this resource. Keep both
+         in sync. -->
+    <string name="server_client_id">527904723284-b79etfju8a8mfdv50rft7gvqiniu373v.apps.googleusercontent.com</string>
 </resources>

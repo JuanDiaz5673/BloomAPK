@@ -64,7 +64,7 @@ const StatsView = (() => {
         <div class="activity-list" id="stats-activity-list">
           <div style="text-align:center;padding:24px;display:flex;flex-direction:column;align-items:center;gap:10px;">
             <svg viewBox="0 0 24 24" width="40" height="40" stroke="var(--accent-blush)" stroke-width="1" fill="none" style="opacity:0.3;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            <div style="font-size:12px;color:var(--text-muted);font-weight:300;">Start using AllDash to see your activity here</div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:300;">Start using Bloom to see your activity here</div>
           </div>
         </div>
       </div>

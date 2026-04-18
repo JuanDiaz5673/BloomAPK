@@ -300,11 +300,33 @@
         }
       },
       signOut: () => window._bloomGoogle?.signOut() ?? { success: true },
-      listCalendars: asyncArr,
-      listEvents: asyncArr,
-      createEvent: () => _notImpl('Calendar event creation'),
-      updateEvent: () => _notImpl('Calendar update'),
-      deleteEvent: () => _notImpl('Calendar delete'),
+      // Desktop preload exposes login/logout/getProfile — alias to keep
+      // settings.js view code identical across platforms.
+      login: async () => {
+        try {
+          const res = await window._bloomGoogle?.signIn();
+          return res?.success ? res : { success: false, error: 'Sign-in returned no result' };
+        } catch (err) {
+          return { success: false, error: String(err?.message || err) };
+        }
+      },
+      logout: () => window._bloomGoogle?.signOut() ?? { success: true },
+      getProfile: async () => {
+        const status = await (window._bloomGoogle?.getStatus() ?? { authenticated: false });
+        return status.authenticated
+          ? { name: status.name, email: status.email, picture: status.picture }
+          : null;
+      },
+      listCalendars: () => window._bloomCalendar?.listCalendars() ?? [],
+      listEvents: (calendarId, timeMin, timeMax) =>
+        window._bloomCalendar?.listEvents(calendarId, timeMin, timeMax) ?? [],
+      createEvent: (calendarId, event) =>
+        window._bloomCalendar?.createEvent(calendarId, event) ?? _notImpl('Calendar create')(),
+      updateEvent: (calendarId, eventId, updates) =>
+        window._bloomCalendar?.updateEvent(calendarId, eventId, updates) ?? _notImpl('Calendar update')(),
+      deleteEvent: (calendarId, eventId) =>
+        window._bloomCalendar?.deleteEvent(calendarId, eventId) ?? _notImpl('Calendar delete')(),
+      getUpcomingEvents: (days) => window._bloomCalendar?.getUpcomingEvents(days) ?? [],
       onAuthExpired: listenerRet,
     },
     calendar: {
@@ -320,13 +342,21 @@
       deleteFile: asyncOk,
     },
     notes: {
-      list: asyncArr,
-      create: () => _notImpl('Note creation'),
-      get: asyncNull,
-      update: asyncOk,
-      delete: asyncOk,
-      createFolder: () => _notImpl('Notes folder creation'),
-      deleteFolder: asyncOk,
+      list: (parentFolderId) => window._bloomNotes?.listNotes(parentFolderId) ?? [],
+      get: (fileId) => window._bloomNotes?.getNote(fileId) ?? null,
+      create: (title, content, parentFolderId, parentNoteId) =>
+        window._bloomNotes?.createNote(title, content, parentFolderId, parentNoteId)
+          ?? _notImpl('Note creation')(),
+      update: (fileId, title, content) =>
+        window._bloomNotes?.updateNote(fileId, title, content) ?? { success: false },
+      delete: (fileId) => window._bloomNotes?.deleteNote(fileId) ?? { success: true },
+      createFolder: (name, parentFolderId) =>
+        window._bloomNotes?.createNotesFolder(name, parentFolderId)
+          ?? _notImpl('Notes folder creation')(),
+      deleteFolder: (folderId) =>
+        window._bloomNotes?.deleteNotesFolder(folderId) ?? { success: true },
+      getRootId: () => window._bloomNotes?.getNotesRootId() ?? null,
+      getRecent: (count) => window._bloomNotes?.getRecentNoteTitles(count) ?? [],
       onChanged: listenerRet,
     },
 

@@ -94,7 +94,7 @@ const SetupWizard = (() => {
         <div class="setup-step-icon">
           <img src="assets/images/bloom-avatar.png" alt="" style="width:80px;height:80px;border-radius:50%;animation:float 3s ease-in-out infinite;filter:drop-shadow(0 8px 24px rgba(var(--accent-primary-rgb),0.3));">
         </div>
-        <h1 class="setup-step-title">Welcome to AllDash</h1>
+        <h1 class="setup-step-title">Welcome to Bloom</h1>
         <p class="setup-step-desc">Your personal productivity dashboard with calendar, notes, and AI assistant — all powered by your own accounts.</p>
 
         <div class="setup-card">

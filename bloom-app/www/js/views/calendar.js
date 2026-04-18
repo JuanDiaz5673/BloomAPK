@@ -37,6 +37,12 @@ const CalendarView = (() => {
       <div class="glass-card" style="flex:1;min-height:0;overflow:hidden;padding:0;animation:fadeSlideUp 0.6s ease 0.15s both;">
         <div class="calendar-container" id="calendar-container"></div>
       </div>
+      <!-- Mobile-only: events for the selected day. Hidden on desktop via mobile.css scope. -->
+      <div class="mobile-day-events" id="mobile-day-events" style="display:none;">
+        <div class="mobile-day-events-title" id="mobile-day-events-title">Today</div>
+        <span class="mobile-day-events-count" id="mobile-day-events-count"></span>
+        <div id="mobile-day-events-list"></div>
+      </div>
     </div>
 
     <!-- Event Modal -->
@@ -108,7 +114,14 @@ const CalendarView = (() => {
         dateClick: handleDateClick,
         eventClick: handleEventClick,
         eventDrop: handleEventDrop,
-        eventResize: handleEventResize
+        eventResize: handleEventResize,
+        // Mobile-only: paint per-day dot indicators after each event set
+        // is laid out, and refresh the selected-day events strip.
+        eventsSet: (evts) => {
+          if (window.innerWidth > 768) return;
+          _renderMobileDots(evts);
+          _renderMobileDayStrip(_selectedDate || new Date(), evts);
+        }
       });
 
       calendarInstance.render();
@@ -328,7 +341,99 @@ const CalendarView = (() => {
   let editingEventId = null;
   let editingCalendarId = 'primary';
 
+  // ── Mobile-only helpers ─────────────────────────────────────────
+  let _selectedDate = null;
+  function _isSameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+  function _eventsOnDay(allEvents, day) {
+    const dayStart = new Date(day); dayStart.setHours(0,0,0,0);
+    const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+    return allEvents.filter(e => {
+      const s = e.start; if (!s) return false;
+      const eStart = new Date(s);
+      const eEnd = e.end ? new Date(e.end) : new Date(eStart.getTime() + 3600_000);
+      return eStart < dayEnd && eEnd > dayStart;
+    });
+  }
+  function _formatTime(d, allDay) {
+    if (allDay) return 'All day';
+    const h = d.getHours(); const m = d.getMinutes();
+    const am = h < 12; const h12 = ((h + 11) % 12) + 1;
+    return `${h12}${m ? ':' + String(m).padStart(2,'0') : ''}${am ? 'a' : 'p'}`;
+  }
+  function _renderMobileDots(allEvents) {
+    document.querySelectorAll('.calendar-container .fc-daygrid-day').forEach(cell => {
+      const dateStr = cell.getAttribute('data-date');
+      if (!dateStr) return;
+      const day = new Date(dateStr + 'T00:00:00');
+      const events = _eventsOnDay(allEvents, day);
+      let dotsHost = cell.querySelector('.mobile-event-dots');
+      if (!dotsHost) {
+        dotsHost = document.createElement('div');
+        dotsHost.className = 'mobile-event-dots';
+        const frame = cell.querySelector('.fc-daygrid-day-frame');
+        if (frame) frame.appendChild(dotsHost);
+      }
+      const visible = Math.min(events.length, 3);
+      dotsHost.innerHTML = '';
+      for (let i = 0; i < visible; i++) {
+        const dot = document.createElement('span');
+        dot.className = 'dot' + (events[i].extendedProps?.isHoliday ? ' holiday' : '');
+        if (events[i].backgroundColor) dot.style.background = events[i].backgroundColor;
+        dotsHost.appendChild(dot);
+      }
+    });
+  }
+  function _esc(s) { return String(s || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+  function _renderMobileDayStrip(day, allEvents) {
+    const titleEl = document.getElementById('mobile-day-events-title');
+    const countEl = document.getElementById('mobile-day-events-count');
+    const listEl = document.getElementById('mobile-day-events-list');
+    if (!titleEl || !listEl) return;
+    const today = new Date();
+    const isToday = _isSameDay(day, today);
+    titleEl.textContent = isToday
+      ? 'Today'
+      : day.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    const events = _eventsOnDay(allEvents, day)
+      .sort((a, b) => new Date(a.start) - new Date(b.start));
+    if (countEl) {
+      countEl.textContent = events.length === 0
+        ? day.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+        : `${events.length} ${events.length === 1 ? 'event' : 'events'} · ${day.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}`;
+    }
+    if (events.length === 0) {
+      listEl.innerHTML = `<div class="mobile-day-events-empty">Nothing scheduled</div>`;
+      return;
+    }
+    listEl.innerHTML = events.map(e => {
+      const start = new Date(e.start);
+      const time = _formatTime(start, !!e.allDay);
+      const accent = e.backgroundColor || 'var(--accent-pink)';
+      const loc = e.extendedProps?.location || '';
+      return `<div class="mobile-day-event-row" data-event-id="${_esc(e.id)}">
+        <div class="mobile-day-event-accent" style="background:${_esc(accent)};"></div>
+        <div class="mobile-day-event-time">${_esc(time)}</div>
+        <div class="mobile-day-event-body">
+          <div class="mobile-day-event-title">${_esc(e.title || '(No title)')}</div>
+          ${loc ? `<div class="mobile-day-event-loc">${_esc(loc)}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   function handleDateClick(info) {
+    if (window.innerWidth <= 768) {
+      _selectedDate = info.date;
+      const all = calendarInstance ? calendarInstance.getEvents() : [];
+      _renderMobileDayStrip(_selectedDate, all);
+      // Visual: highlight the tapped cell with the today-style ring
+      document.querySelectorAll('.calendar-container .fc-daygrid-day.is-mobile-selected')
+        .forEach(c => c.classList.remove('is-mobile-selected'));
+      info.dayEl?.classList.add('is-mobile-selected');
+      return;
+    }
     editingEventId = null;
     document.getElementById('event-modal-title').textContent = 'New Event';
     document.getElementById('event-title').value = '';
