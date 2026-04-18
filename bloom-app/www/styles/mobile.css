@@ -61,8 +61,9 @@
      On mobile the view-container scrolls; give it the safe-area
      bottom padding so content never hides behind the nav bar. */
   #view-container {
-    padding: 0 10px;
-    padding-bottom: calc(24px + var(--mobile-safe-bottom));
+    padding: 0 10px 12px;
+    /* .main already reserves mobile-safe-bottom for the fixed nav —
+       don't double it up here or empty wallpaper shows below cards. */
   }
 
   /* ── Glass cards — become full-width vertical stack ───────────── */
@@ -81,6 +82,18 @@
     flex-direction: column !important;
     gap: 12px;
     grid-template-columns: none !important;
+  }
+  /* Fill the viewport so cards don't leave wallpaper showing below.
+     Home's root is `.dashboard-grid` (not `.home-view`). Last card
+     grows to consume remaining space. */
+  .home-view,
+  .dashboard-grid {
+    min-height: calc(100vh - 64px - var(--mobile-nav-height) - var(--mobile-safe-bottom) - 24px);
+  }
+  .dashboard-grid > .glass-card:last-child,
+  .dashboard-grid > .card-convos {
+    flex: 1 1 auto !important;
+    min-height: 140px;
   }
 
   /* Section labels — serif headings outside the cards, editorial feel. */
@@ -414,10 +427,25 @@
 
   /* ── Study view ──────────────────────────────────────────────── */
   /* Kill the 32px side padding so cards match the widths used on
-     Home/Calendar/Notes. Top/bottom spacing stays. */
+     Home/Calendar/Notes. Also flex-fill the viewport so cards end at
+     the nav bar instead of leaving wallpaper showing below. */
   .study-view {
     padding: 12px 0 24px !important;
     gap: 12px;
+    min-height: calc(100vh - 64px - var(--mobile-nav-height) - var(--mobile-safe-bottom) - 24px);
+  }
+  /* Tiles container: switch from CSS grid to flex-column on mobile so we
+     can flex-grow the tiles to fill the remaining view height — no more
+     wallpaper showing below the Flashcards tile on short screens. */
+  .study-tiles {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto;
+    gap: 12px;
+  }
+  .study-tile {
+    flex: 1 1 0;
+    min-height: 120px;
   }
 
   /* Flashcards sub-page back-bar — stack into 2 rows so the title,
@@ -486,11 +514,21 @@
   .settings-page {
     padding: 8px;
     gap: 14px;
+    min-height: calc(100vh - 64px - var(--mobile-nav-height) - var(--mobile-safe-bottom) - 24px);
   }
   .settings-grid-top,
   .settings-grid-bottom {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 14px;
+  }
+  /* Last card (Appearance) fills the remaining vertical space so
+     wallpaper doesn't show through below it. */
+  .settings-grid-bottom {
+    flex: 1 1 auto;
+  }
+  .settings-grid-bottom > .glass-card:last-child {
+    flex: 1 1 auto;
   }
   .settings-section {
     padding: 16px;
