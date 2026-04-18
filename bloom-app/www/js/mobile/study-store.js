@@ -80,6 +80,21 @@
     });
   }
 
+  // ── Mutation bus ────────────────────────────────────────────────
+  // Lightweight subscribe/emit so study-sync can react to deck +
+  // session changes without having to poll the filesystem.
+  const _mutateListeners = new Set();
+  function onMutate(fn) {
+    if (typeof fn !== 'function') return () => {};
+    _mutateListeners.add(fn);
+    return () => _mutateListeners.delete(fn);
+  }
+  function _fireMutate(event) {
+    for (const fn of _mutateListeners) {
+      try { fn(event); } catch (err) { console.warn('[study] mutate listener threw:', err); }
+    }
+  }
+
   async function _listDecks() {
     const fs = FS();
     if (!fs) return [];
@@ -156,6 +171,7 @@
     const now = Date.now();
     const deck = { id, name, cards: [], createdAt: now, updatedAt: now };
     await _writeJSON(`${DECKS_DIR}/${id}.json`, deck);
+    _fireMutate({ type: 'deck', deckId: id });
     return deck;
   }
 
@@ -167,8 +183,29 @@
       if (typeof patch?.name === 'string') deck.name = patch.name.slice(0, MAX_DECK_NAME_CHARS);
       deck.updatedAt = Date.now();
       await _writeJSON(`${DECKS_DIR}/${id}.json`, deck);
+      _fireMutate({ type: 'deck', deckId: id });
       return { success: true };
     });
+  }
+
+  // Used by study-sync when pulling from Drive: writes the whole deck
+  // JSON as-is (preserving remote id, cards, timestamps). Suppresses
+  // the mutate event by default so we don't loop back into a push.
+  async function writeDeckRaw(deck, { silent = true } = {}) {
+    if (!deck || !DECK_ID_RE.test(deck.id)) return { success: false };
+    await _writeJSON(`${DECKS_DIR}/${deck.id}.json`, deck);
+    if (!silent) _fireMutate({ type: 'deck', deckId: deck.id });
+    return { success: true };
+  }
+
+  async function readSessionsRaw() {
+    return _readJSON(SESSIONS_PATH, []);
+  }
+  async function writeSessionsRaw(list, { silent = true } = {}) {
+    if (!Array.isArray(list)) return { success: false };
+    await _writeJSON(SESSIONS_PATH, list);
+    if (!silent) _fireMutate({ type: 'sessions' });
+    return { success: true };
   }
 
   async function deleteDeck(id) {
@@ -178,6 +215,7 @@
       try {
         await fs.deleteFile({ path: `${DECKS_DIR}/${id}.json`, directory: DIR });
       } catch { /* ignore */ }
+      _fireMutate({ type: 'deck-deleted', deckId: id });
       return { success: true };
     });
   }
@@ -199,6 +237,7 @@
       deck.cards.push(card);
       deck.updatedAt = Date.now();
       await _writeJSON(`${DECKS_DIR}/${deckId}.json`, deck);
+      _fireMutate({ type: 'deck', deckId });
       return card;
     });
   }
@@ -214,6 +253,7 @@
       if (typeof patch?.back === 'string') deck.cards[i].back = patch.back.slice(0, MAX_FRONT_BACK_CHARS);
       deck.updatedAt = Date.now();
       await _writeJSON(`${DECKS_DIR}/${deckId}.json`, deck);
+      _fireMutate({ type: 'deck', deckId });
       return { success: true };
     });
   }
@@ -226,6 +266,7 @@
       deck.cards = deck.cards.filter(c => c.id !== cardId);
       deck.updatedAt = Date.now();
       await _writeJSON(`${DECKS_DIR}/${deckId}.json`, deck);
+      _fireMutate({ type: 'deck', deckId });
       return { success: true };
     });
   }
@@ -256,6 +297,7 @@
 
       deck.updatedAt = Date.now();
       await _writeJSON(`${DECKS_DIR}/${deckId}.json`, deck);
+      _fireMutate({ type: 'deck', deckId });
 
       // Counter bump in today's prefs.
       const prefs = await getPrefs();
@@ -297,6 +339,7 @@
     sessions.push(e);
     if (sessions.length > MAX_SESSIONS) sessions.splice(0, sessions.length - MAX_SESSIONS);
     await _writeJSON(SESSIONS_PATH, sessions);
+    _fireMutate({ type: 'sessions' });
 
     // Roll up into today's prefs.
     const prefs = await getPrefs();
@@ -348,5 +391,7 @@
     recordReview, getDueCards,
     logSession, getStats,
     getPrefs, setPrefs,
+    // Sync-only helpers — used by study-sync.js on Drive push/pull.
+    onMutate, writeDeckRaw, readSessionsRaw, writeSessionsRaw,
   };
 })();

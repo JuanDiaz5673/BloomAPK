@@ -411,10 +411,27 @@
         today: { date: new Date().toLocaleDateString('sv-SE'), focusMin: 0, cyclesCompleted: 0, cardsReviewed: 0 },
       },
       setPrefs: (patch) => window._bloomStudy?.setPrefs(patch) ?? { success: false },
-      // Drive sync is Phase 3/4 follow-up — needs Google auth.
-      syncNow: asyncOk,
-      getSyncStatus: async () => ({ state: 'disabled', authed: false, pendingCount: 0, message: 'Sync comes with Google sign-in' }),
-      onDecksChanged: listenerRet,
+      // Drive sync: wired to study-sync.js on mobile. Manual sync
+      // kicks off an immediate pull + flush.
+      syncNow: async () => {
+        try { await window._bloomStudySync?.syncNow(); return { success: true }; }
+        catch (err) { return { success: false, error: String(err?.message || err) }; }
+      },
+      getSyncStatus: async () => {
+        const authed = (await window._bloomGoogle?.getStatus())?.authenticated;
+        return authed
+          ? { state: 'idle', authed: true, pendingCount: 0 }
+          : { state: 'disabled', authed: false, pendingCount: 0, message: 'Sign in to Google to sync' };
+      },
+      // Adapter: study view subscribes to onDecksChanged; study-sync
+      // dispatches 'bloom:decks-changed' on the window after pulling
+      // remote decks. Convert window events into listener-pattern
+      // callbacks so the desktop-shaped view code Just Works.
+      onDecksChanged: (fn) => {
+        const handler = () => { try { fn(); } catch {} };
+        window.addEventListener('bloom:decks-changed', handler);
+        return () => window.removeEventListener('bloom:decks-changed', handler);
+      },
       onPomodoroStart: listenerRet,
       onSyncStatus: listenerRet,
     },
