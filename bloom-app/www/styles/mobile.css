@@ -808,44 +808,25 @@
   }
 
   /* ── timeGridWeek / timeGridDay event rendering ─────────────────
-     Default FullCalendar lays 7 day columns across ~320px of usable
-     width = ~45px per column. Long event titles then word-broke one
-     char per line (vertical stack of letters). Fix: force single-
-     line ellipsis on the event title AND let the timegrid scroll
-     horizontally so each column gets a minimum width wide enough
-     for a legible label. User swipes to see later days. */
-  .calendar-container .fc-view-harness .fc-timegrid {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  /* Day columns: minimum 96px so a ~10-char title renders on one
-     line before ellipsifying. */
-  .calendar-container .fc-timegrid-col {
-    min-width: 96px;
-  }
-  /* Time axis stays anchored on the left while day columns scroll
-     horizontally — always see the hour you're looking at. */
-  .calendar-container .fc-timegrid-axis,
-  .calendar-container .fc-timegrid-axis-frame,
-  .calendar-container .fc-timegrid-slot-label {
-    position: sticky;
-    left: 0;
-    z-index: 4;
-    background: rgba(30, 12, 20, 0.82);
-    backdrop-filter: blur(10px);
-  }
+     Previous attempt used overflow-x:auto on the timegrid with a
+     sticky time axis + backdrop-filter. That fought FullCalendar's
+     own ResizeObserver (it reruns updateSize() on every width tick)
+     and the backdrop-filter on a scrolling sticky element triggered
+     constant GPU blur recomputes on Android WebView — visible as
+     stutter + flashes. Reverted to CSS-only sizing: let FC keep
+     its default layout, just force event titles to not stack
+     vertically when columns get narrow. */
 
   /* Event chip: single-line title + time, ellipsis when too long.
-     Smaller padding + font than desktop so the 9px time fits next
-     to a tidy truncated label instead of stacking one char per row. */
+     Kills the one-char-per-row vertical stacking that happened at
+     ~45px column width. Users tap to see full details. */
   .calendar-container .fc-timegrid-event {
     font-size: 10px !important;
     padding: 0 !important;
     border-radius: 6px !important;
   }
-  .calendar-container .fc-timegrid-event .fc-event-main,
-  .calendar-container .fc-timegrid-event .fc-event-main-frame {
-    padding: 3px 5px !important;
+  .calendar-container .fc-timegrid-event .fc-event-main {
+    padding: 3px 4px !important;
     overflow: hidden !important;
   }
   .calendar-container .fc-timegrid-event .fc-event-time {
@@ -854,7 +835,6 @@
     white-space: nowrap !important;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-bottom: 1px;
   }
   .calendar-container .fc-timegrid-event .fc-event-title,
   .calendar-container .fc-timegrid-event .fc-event-title-container {
@@ -863,7 +843,6 @@
     text-overflow: ellipsis !important;
     word-break: normal !important;
     overflow-wrap: normal !important;
-    display: block !important;
     line-height: 1.2 !important;
   }
   /* All-day row on week/day: compact + single-line */
