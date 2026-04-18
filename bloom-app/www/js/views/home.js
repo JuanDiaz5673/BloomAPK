@@ -272,6 +272,47 @@ const HomeView = (() => {
   // token exists.
   window.addEventListener('bloom:google-connected', () => _debouncedRefetch());
 
+  // Re-render just the Recent Conversations card whenever the bridge
+  // appends a user/assistant message. Full dashboard refetch would
+  // thrash Google APIs for every chat turn; this targets one card.
+  window.addEventListener('bloom:conversations-changed', () => {
+    _renderConversationsCard().catch(() => {});
+  });
+
+  async function _renderConversationsCard() {
+    if (!window.electronAPI?.claude?.listConversations) return;
+    try {
+      const convos = await window.electronAPI.claude.listConversations();
+      const homeConvos = document.getElementById('home-conversations');
+      if (!homeConvos) return;
+      if (convos.length === 0) {
+        homeConvos.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">No conversations yet. Chat with Bloom to get started.</div>`;
+        return;
+      }
+      homeConvos.innerHTML = convos.slice(0, 4).map(c => `
+        <div class="file-item" style="cursor:pointer;" data-deep="convo" data-id="${c.id}">
+          <div class="file-icon doc">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div class="file-info">
+            <div class="file-name">${_escapeHtml(c.title || 'Conversation')}</div>
+            <!-- Bridge emits messageCount; desktop shape uses messages[]. -->
+            <div class="file-size">${c.messageCount ?? (Array.isArray(c.messages) ? c.messages.length : 0)} messages</div>
+          </div>
+        </div>
+      `).join('');
+      homeConvos.querySelectorAll('[data-deep="convo"]').forEach(el => {
+        el.addEventListener('click', () => {
+          Router.setDeepLink({ type: 'conversation', id: el.dataset.id });
+          Router.navigate('chat');
+        });
+      });
+    } catch {
+      const homeConvos = document.getElementById('home-conversations');
+      if (homeConvos) homeConvos.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">No conversations yet</div>`;
+    }
+  }
+
   let _notesChangedCleanup = null;
   function _attachNotesChangedListener() {
     if (_notesChangedCleanup) _notesChangedCleanup();
@@ -617,42 +658,7 @@ const HomeView = (() => {
     })());
 
     // ── Recent conversations ──
-    sections.push((async () => {
-    try {
-      const convos = await window.electronAPI.claude.listConversations();
-      const homeConvos = document.getElementById('home-conversations');
-      if (homeConvos) {
-        if (convos.length === 0) {
-          homeConvos.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">No conversations yet. Chat with Bloom to get started.</div>`;
-        } else {
-          homeConvos.innerHTML = convos.slice(0, 4).map(c => `
-            <div class="file-item" style="cursor:pointer;" data-deep="convo" data-id="${c.id}">
-              <div class="file-icon doc">
-                <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              </div>
-              <div class="file-info">
-                <div class="file-name">${_escapeHtml(c.title || 'Conversation')}</div>
-                <!-- The mobile bridge always emits messageCount now; the
-                     c.messages?.length fallback only runs on the desktop
-                     conversation shape. Keep both so this template works
-                     on either platform. -->
-                <div class="file-size">${c.messageCount ?? (Array.isArray(c.messages) ? c.messages.length : 0)} messages</div>
-              </div>
-            </div>
-          `).join('');
-          homeConvos.querySelectorAll('[data-deep="convo"]').forEach(el => {
-            el.addEventListener('click', () => {
-              Router.setDeepLink({ type: 'conversation', id: el.dataset.id });
-              Router.navigate('chat');
-            });
-          });
-        }
-      }
-    } catch {
-      const homeConvos = document.getElementById('home-conversations');
-      if (homeConvos) homeConvos.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">No conversations yet</div>`;
-    }
-    })());
+    sections.push(_renderConversationsCard());
 
     // Wait for all four section loaders before firing the greeting —
     // greeting doesn't need the data, but keeping the loop sequenced

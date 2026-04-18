@@ -69,6 +69,15 @@
     c.updatedAt = Date.now();
     if (!c.title && role === 'user') c.title = text.slice(0, 60);
     _conversations.set(id, c);
+    // Fire a lightweight event so the home "Recent Conversations" card
+    // (and anything else interested) can re-render without having to
+    // poll listConversations. Wrapped in try/catch because some very
+    // old Android WebViews throw on constructing CustomEvent.
+    try {
+      window.dispatchEvent(new CustomEvent('bloom:conversations-changed', {
+        detail: { id, role, messageCount: c.messages.length },
+      }));
+    } catch {}
   }
 
   // Track which platform is serving up the bridge, so app code can

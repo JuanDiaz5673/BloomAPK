@@ -124,6 +124,14 @@
     flex: 1 1 auto !important;
     min-height: 140px;
   }
+  /* Bloom AI card — a touch taller on mobile, with more vertical
+     breathing room for the chat stream. Width stays the same. */
+  .dashboard-grid > .card-mascot {
+    min-height: 360px;
+  }
+  .card-mascot .ai-chat-messages {
+    max-height: 200px !important;
+  }
 
   /* Section labels — serif headings outside the cards, editorial feel. */
   .mobile-section-label {
