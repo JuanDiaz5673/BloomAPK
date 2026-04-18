@@ -29,7 +29,12 @@
     return window.Capacitor?.Plugins?.LocalNotifications;
   }
 
-  async function ensurePermission() {
+  // Tracks whether we've already shown the user a "denied" toast this
+  // session — we only want to nag them once per run, not every time
+  // they start a pomodoro.
+  let _deniedToasted = false;
+
+  async function ensurePermission({ silent = false } = {}) {
     const p = _plugin();
     if (!p) return false;
     if (_permissionState === 'granted') return true;
@@ -39,13 +44,46 @@
         _permissionState = 'granted';
         return true;
       }
+      // Android 13+ (API 33+) added the POST_NOTIFICATIONS runtime
+      // permission; below that, requestPermissions resolves 'granted'
+      // immediately. Either way this is the single call site.
       const req = await p.requestPermissions();
       _permissionState = req?.display === 'granted' ? 'granted' : 'denied';
+      if (_permissionState !== 'granted' && !silent && !_deniedToasted) {
+        _deniedToasted = true;
+        if (window.Toast?.show) {
+          window.Toast.show(
+            'Notifications blocked. Enable them in Settings → Apps → Bloom → Notifications to get Pomodoro alerts.',
+            'warning',
+            6000
+          );
+        }
+      }
       return _permissionState === 'granted';
     } catch (err) {
       console.warn('[pomo-notify] Permission request failed:', err);
       return false;
     }
+  }
+
+  // Proactive first-run prompt. Called from native-integration.init so
+  // the user sees the Android 13+ system dialog when they open the app,
+  // not the first time they try to start a pomodoro and silently get
+  // nothing. Safe to call on older Android — just no-ops to granted.
+  async function primePermission() {
+    const p = _plugin();
+    if (!p) return false;
+    try {
+      const check = await p.checkPermissions();
+      // If the user already made a decision (granted OR denied), don't
+      // re-prompt — the OS caches that and re-requests are rejected
+      // silently after the second denial anyway.
+      if (check?.display === 'granted' || check?.display === 'denied') {
+        _permissionState = check.display;
+        return _permissionState === 'granted';
+      }
+      return await ensurePermission({ silent: true });
+    } catch { return false; }
   }
 
   // kind: 'focus' | 'short-break' | 'long-break'
@@ -110,5 +148,5 @@
     } catch { /* ignore */ }
   }
 
-  window._bloomPomo = { ensurePermission, scheduleEnd, cancel, cancelAll };
+  window._bloomPomo = { ensurePermission, primePermission, scheduleEnd, cancel, cancelAll };
 })();

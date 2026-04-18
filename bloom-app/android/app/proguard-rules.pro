@@ -8,11 +8,23 @@
 -keepclassmembers class * extends com.getcapacitor.Plugin {
     @com.getcapacitor.PluginMethod public *;
 }
-# Google Sign-In (Phase 3)
--keep class com.google.android.gms.** { *; }
--keep class com.codetrixstudio.capacitor.GoogleAuth.** { *; }
 # App itself
 -keep class com.bloom.app.** { *; }
+
+# WebView JS bridge reflection — Capacitor pipes calls through this
+# so R8 must not obfuscate the annotated plugin methods or their
+# parameter types. The rules above cover the plugin classes
+# themselves; these protect reflective method invocation.
+-keepattributes Signature,*Annotation*,InnerClasses,EnclosingMethod
+-keepclassmembers class * {
+    @com.getcapacitor.PluginMethod public *;
+    @com.getcapacitor.annotation.CapacitorPlugin *;
+}
+
+# Keep line numbers in release crash reports — tiny size cost, huge
+# debuggability win when users surface stack traces.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
 # Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
