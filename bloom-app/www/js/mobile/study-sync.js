@@ -319,6 +319,13 @@
       await _pullAll();
       await flushNow();
       _setStatus({ state: 'idle', lastSyncAt: Date.now(), pendingCount: _dirtyDecks.size });
+      // Always signal completion. Per-deck _maybePullDeck already
+      // fires this on individual writes, but if the pull brought
+      // nothing new (or hit an early return path that didn't land a
+      // deck) the home's "Recent Flashcards" card needs to know the
+      // sync finished so it can re-read local state instead of
+      // sitting on a skeleton forever.
+      try { window.dispatchEvent(new CustomEvent('bloom:decks-changed')); } catch {}
       console.info('[study-sync] syncNow: done');
     } catch (err) {
       console.warn('[study-sync] syncNow failed:', err?.message || err);

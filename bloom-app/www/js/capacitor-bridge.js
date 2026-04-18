@@ -504,14 +504,11 @@
 
     // ── Recent items ──
     recent: {
-      list: asyncArr,
-      add: asyncOk,
-      // The Files view calls track/forget to bump recently-opened items.
-      // Empty impls for now (Phase-4 follow-up), but real methods so
-      // callers don't trigger "X is not a function" TypeErrors.
-      track: asyncOk,
-      forget: asyncOk,
-      clear: asyncOk,
+      list: (opts) => window._bloomRecent?.list(opts) ?? [],
+      add: (entry) => window._bloomRecent?.add(entry) ?? { success: false },
+      track: (entry, extra) => window._bloomRecent?.track(entry, extra) ?? { success: false },
+      forget: (id, kind) => window._bloomRecent?.forget(id, kind) ?? { success: false },
+      clear: () => window._bloomRecent?.clear() ?? { success: true },
     },
 
     // ── Theme ──

@@ -295,17 +295,42 @@ const HomeView = (() => {
   });
 
   // Re-render the Recent Flashcards card when study-sync pulls decks
-  // or when the user creates/edits a deck locally.
+  // or when the user creates/edits a deck locally. Also kick a sync
+  // ourselves so returning-to-home after a cold start doesn't sit on
+  // empty skeletons waiting for the 5-min interval.
   window.addEventListener('bloom:decks-changed', () => {
     _renderFlashcardsCard().catch(() => {});
   });
+  // Re-render Recent Files card when anything (this view or Files)
+  // tracks a new access. Keeps Home in lockstep without a full refetch.
+  window.addEventListener('bloom:recent-changed', (e) => {
+    if (!e?.detail || e.detail.kind === 'file') {
+      // Scoped to the drive card — call loadDashboardData's inner
+      // section instead of the whole refetch. Simplest: just trigger
+      // the debounced refetch which hits all sections.
+      _debouncedRefetch();
+    }
+  });
+
+  // Latest-call-wins guard. Multiple paths can race into
+  // _renderFlashcardsCard (initial load, bloom:decks-changed, manual
+  // sync) — without this, a slow `listDecks()` from the first call
+  // can land AFTER a fresh call's result and overwrite the real data
+  // with "No decks yet." This was why Recent Flashcards stayed empty
+  // on first launch until the user navigated to Study and back.
+  let _flashcardsSeq = 0;
 
   async function _renderFlashcardsCard() {
     if (!window.electronAPI?.study?.listDecks) return;
     const host = document.getElementById('home-flashcards');
     if (!host) return;
+    const tok = ++_flashcardsSeq;
+    // Nudge study-sync to pull if it hasn't yet. No-op if in flight
+    // or already idle with no new remote changes.
+    try { window.electronAPI.study.syncNow?.(); } catch {}
     try {
       const decks = await window.electronAPI.study.listDecks();
+      if (tok !== _flashcardsSeq) return; // a newer render superseded us
       if (!Array.isArray(decks) || decks.length === 0) {
         host.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">No flashcard decks yet. Create one in Study.</div>`;
         return;
@@ -332,6 +357,7 @@ const HomeView = (() => {
         });
       });
     } catch {
+      if (tok !== _flashcardsSeq) return;
       host.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">No flashcard decks yet</div>`;
     }
   }
