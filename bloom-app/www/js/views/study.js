@@ -306,6 +306,13 @@ const StudyView = (() => {
       _syncStatus = s;
       _renderSyncChip(s);
     }).catch(() => {});
+    // Kick off a sync every time Study mounts. If we're already idle
+    // this is a cheap pull that surfaces anything the desktop pushed
+    // since last visit; if we're mid-sync the in-flight guard makes
+    // it a no-op. Without this, a user who opens the app post-signin
+    // and immediately taps Study could wait up to 5 min (the interval
+    // cadence) to see their first decks.
+    try { window.electronAPI.study.syncNow?.(); } catch {}
     _unsubPomodoroStart = window.electronAPI.study.onPomodoroStart((payload) => {
       if (_timerStatus === 'running') return; // don't interrupt an active session
       if (payload?.durationMin) {

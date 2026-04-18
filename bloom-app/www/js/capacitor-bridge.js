@@ -466,22 +466,28 @@
         catch (err) { return { success: false, error: String(err?.message || err) }; }
       },
       getSyncStatus: async () => {
+        const cached = window._bloomStudySync?.getStatus?.();
+        if (cached) return cached;
         const authed = (await window._bloomGoogle?.getStatus())?.authenticated;
         return authed
           ? { state: 'idle', authed: true, pendingCount: 0 }
           : { state: 'disabled', authed: false, pendingCount: 0, message: 'Sign in to Google to sync' };
       },
-      // Adapter: study view subscribes to onDecksChanged; study-sync
-      // dispatches 'bloom:decks-changed' on the window after pulling
-      // remote decks. Convert window events into listener-pattern
-      // callbacks so the desktop-shaped view code Just Works.
       onDecksChanged: (fn) => {
         const handler = () => { try { fn(); } catch {} };
         window.addEventListener('bloom:decks-changed', handler);
         return () => window.removeEventListener('bloom:decks-changed', handler);
       },
       onPomodoroStart: listenerRet,
-      onSyncStatus: listenerRet,
+      // Stream sync-status updates as study-sync dispatches them, so
+      // the Study view's chip stays in lockstep with the real state
+      // (syncing / idle / error / disabled) instead of the stale
+      // "disabled" default.
+      onSyncStatus: (fn) => {
+        const handler = (e) => { try { fn(e?.detail); } catch {} };
+        window.addEventListener('bloom:study-sync-status', handler);
+        return () => window.removeEventListener('bloom:study-sync-status', handler);
+      },
     },
 
     // ── File browser (local FS — N/A on Android, stub) ──

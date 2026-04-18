@@ -260,11 +260,31 @@
     _pushTimer = setTimeout(() => { _pushTimer = null; flushNow(); }, PUSH_DEBOUNCE_MS);
   }
 
+  // ── Status broadcast ─────────────────────────────────────────────
+  // Matches the desktop shape: { state, lastSyncAt, pendingCount, authed }
+  let _status = { state: 'idle', lastSyncAt: null, pendingCount: 0, authed: false };
+  function _setStatus(patch) {
+    _status = { ..._status, ...patch };
+    try { window.dispatchEvent(new CustomEvent('bloom:study-sync-status', { detail: _status })); } catch {}
+  }
+  function getStatus() { return _status; }
+
+  async function _isAuthed() {
+    await (window._storeReady || Promise.resolve());
+    const auth = _auth();
+    if (!auth) return false;
+    try {
+      const s = await auth.getStatus();
+      return !!s?.authenticated;
+    } catch { return false; }
+  }
+
   let _syncInFlight = false;
   async function flushNow() {
     if (_syncInFlight) return;
-    if (!_auth() || !(await _auth().getStatus()).authenticated) return;
+    if (!(await _isAuthed())) return;
     _syncInFlight = true;
+    _setStatus({ state: 'syncing', authed: true, pendingCount: _dirtyDecks.size + (_dirtySessions ? 1 : 0) });
     try {
       const deckIds = Array.from(_dirtyDecks);
       _dirtyDecks.clear();
@@ -275,8 +295,10 @@
         _dirtySessions = false;
         try { await _pushSessions(); } catch (e) { _dirtySessions = true; throw e; }
       }
+      _setStatus({ state: 'idle', lastSyncAt: Date.now(), pendingCount: 0 });
     } catch (err) {
       console.warn('[study-sync] flush failed:', err?.message || err);
+      _setStatus({ state: 'error', message: String(err?.message || err) });
     } finally {
       _syncInFlight = false;
     }
@@ -286,36 +308,50 @@
   let _fullInFlight = false;
   async function syncNow() {
     if (_fullInFlight) return;
-    const auth = _auth();
-    if (!auth || !(await auth.getStatus()).authenticated) return;
+    if (!(await _isAuthed())) {
+      _setStatus({ state: 'disabled', authed: false, message: 'Sign in to Google to sync' });
+      return;
+    }
     _fullInFlight = true;
+    _setStatus({ state: 'syncing', authed: true });
+    console.info('[study-sync] syncNow: pulling from Drive…');
     try {
       await _pullAll();
       await flushNow();
+      _setStatus({ state: 'idle', lastSyncAt: Date.now(), pendingCount: _dirtyDecks.size });
+      console.info('[study-sync] syncNow: done');
     } catch (err) {
       console.warn('[study-sync] syncNow failed:', err?.message || err);
+      _setStatus({ state: 'error', message: String(err?.message || err) });
     } finally {
       _fullInFlight = false;
     }
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────
-  function start() {
+  async function start() {
     if (!_store() || typeof _store().onMutate !== 'function') {
       // study-store isn't loaded yet; retry shortly.
       setTimeout(start, 200);
       return;
     }
     _store().onMutate(_markDirty);
-    // Initial sync (if already authed). Safe no-op otherwise.
+    // Wait for the bridge's disk-hydrate to finish before the first
+    // syncNow — otherwise getStatus() reads an empty in-memory store
+    // and decides we're unauthed, so the pull silently skips.
+    try { await (window._storeReady || Promise.resolve()); } catch {}
     syncNow();
     // Periodic pull so remote changes show up eventually even if the
     // user doesn't touch a deck locally.
     setInterval(syncNow, PULL_INTERVAL_MS);
     // Re-sync on sign-in event (from google-auth.js).
     window.addEventListener('bloom:google-connected', () => syncNow());
+    // Reset status on disconnect so the Study sync chip paints correctly.
+    window.addEventListener('bloom:google-disconnected', () => {
+      _setStatus({ state: 'disabled', authed: false, pendingCount: 0, message: 'Sign in to Google to sync' });
+    });
   }
 
-  window._bloomStudySync = { syncNow, flushNow };
+  window._bloomStudySync = { syncNow, flushNow, getStatus };
   start();
 })();

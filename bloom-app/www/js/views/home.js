@@ -194,6 +194,17 @@ const HomeView = (() => {
         </div>
       </div>
 
+      <!-- Recent Flashcards Card -->
+      <div class="glass-card card-flashcards">
+        <div class="card-title" style="cursor:pointer;" data-nav="study">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Recent Flashcards</span>
+        </div>
+        <div class="files-grid" id="home-flashcards">
+          <div class="skeleton-list" style="grid-column:1/-1;"><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
+        </div>
+      </div>
+
       <!-- Recent Conversations Card -->
       <div class="glass-card card-convos">
         <div class="card-title" style="cursor:pointer;" data-nav="chat">
@@ -282,6 +293,48 @@ const HomeView = (() => {
   window.addEventListener('bloom:conversations-changed', () => {
     _renderConversationsCard().catch(() => {});
   });
+
+  // Re-render the Recent Flashcards card when study-sync pulls decks
+  // or when the user creates/edits a deck locally.
+  window.addEventListener('bloom:decks-changed', () => {
+    _renderFlashcardsCard().catch(() => {});
+  });
+
+  async function _renderFlashcardsCard() {
+    if (!window.electronAPI?.study?.listDecks) return;
+    const host = document.getElementById('home-flashcards');
+    if (!host) return;
+    try {
+      const decks = await window.electronAPI.study.listDecks();
+      if (!Array.isArray(decks) || decks.length === 0) {
+        host.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">No flashcard decks yet. Create one in Study.</div>`;
+        return;
+      }
+      const sorted = decks.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 4);
+      host.innerHTML = sorted.map(d => {
+        const n = Array.isArray(d.cards) ? d.cards.length : (d.cardCount || 0);
+        return `
+          <div class="file-item" style="cursor:pointer;" data-deep="deck" data-id="${_escapeHtml(d.id)}">
+            <div class="file-icon doc">
+              <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div class="file-info">
+              <div class="file-name">${_escapeHtml(d.name || 'Untitled deck')}</div>
+              <div class="file-size">${n} card${n === 1 ? '' : 's'}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      host.querySelectorAll('[data-deep="deck"]').forEach(el => {
+        el.addEventListener('click', () => {
+          Router.setDeepLink({ type: 'deck', id: el.dataset.id });
+          Router.navigate('study');
+        });
+      });
+    } catch {
+      host.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">No flashcard decks yet</div>`;
+    }
+  }
 
   async function _renderConversationsCard() {
     if (!window.electronAPI?.claude?.listConversations) return;
@@ -660,6 +713,9 @@ const HomeView = (() => {
       if (homeDrive) homeDrive.innerHTML = `<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:11px;font-weight:300;">Connect Google to see files</div>`;
     }
     })());
+
+    // ── Recent flashcards ──
+    sections.push(_renderFlashcardsCard());
 
     // ── Recent conversations ──
     sections.push(_renderConversationsCard());
