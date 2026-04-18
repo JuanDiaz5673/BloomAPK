@@ -185,12 +185,30 @@ const BloomSheet = (() => {
       }
     };
 
-    handle.addEventListener('mousedown', onStart);
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onEnd);
-    handle.addEventListener('touchstart', onStart, { passive: true });
-    document.addEventListener('touchmove', onMove, { passive: true });
-    document.addEventListener('touchend', onEnd);
+    // Attach move/end only while a drag is active. Two wins:
+    //  1. No document-level listener leak across re-mounts.
+    //  2. touchmove with `passive:false` can preventDefault while
+    //     dragging so the sheet doesn't fight the messages' native scroll.
+    function attachWhileDragging() {
+      document.addEventListener('mousemove', onMoveMouse);
+      document.addEventListener('mouseup', onEndOnce);
+      document.addEventListener('touchmove', onMoveTouch, { passive: false });
+      document.addEventListener('touchend', onEndOnce);
+      document.addEventListener('touchcancel', onEndOnce);
+    }
+    function detachDragging() {
+      document.removeEventListener('mousemove', onMoveMouse);
+      document.removeEventListener('mouseup', onEndOnce);
+      document.removeEventListener('touchmove', onMoveTouch);
+      document.removeEventListener('touchend', onEndOnce);
+      document.removeEventListener('touchcancel', onEndOnce);
+    }
+    const onMoveMouse = (e) => onMove(e);
+    const onMoveTouch = (e) => { e.preventDefault(); onMove(e); };
+    const onEndOnce = () => { onEnd(); detachDragging(); };
+
+    handle.addEventListener('mousedown', (e) => { onStart(e); attachWhileDragging(); });
+    handle.addEventListener('touchstart', (e) => { onStart(e); attachWhileDragging(); }, { passive: true });
   }
 
   // ── Send / stream handling ───────────────────────────────────────
@@ -199,6 +217,11 @@ const BloomSheet = (() => {
   // ai.streamChat is replaced with a real implementation.
   let _currentAssistantBubble = null;
   let _currentAssistantText = '';
+  // In-memory chat history. Previously we scraped bubble textContent each
+  // send, which both (a) lost any markdown/code the assistant streamed
+  // and (b) could pick up stray matching nodes in the page. Track the
+  // canonical role+string pairs here instead.
+  const _history = [];
 
   async function _send() {
     const text = _inputEl.value.trim();
@@ -206,39 +229,18 @@ const BloomSheet = (() => {
     _inputEl.value = '';
     _inputEl.style.height = 'auto';
     _appendBubble('user', text);
+    _history.push({ role: 'user', content: text });
 
     if (!window.electronAPI?.ai?.streamChat) return;
 
-    // The bridge currently stubs streamChat to show "not yet
-    // implemented". If a real provider is wired up later, it will
-    // emit onStreamDelta events which append into _currentAssistantBubble.
     const convoId = window._activeConversationId || ('m_' + Date.now());
     window._activeConversationId = convoId;
-    // Bridge expects (messages: Array<{role,content}>, conversationId).
-    // Passing a single object here broke every provider's .filter() call
-    // ("messages.filter is not a function"). Build the messages array
-    // from any prior bubbles in this sheet + the new user turn.
-    const messages = _collectSheetHistory().concat([{ role: 'user', content: text }]);
     try {
-      await window.electronAPI.ai.streamChat(messages, convoId);
+      // Clone so providers' filter/map can't mutate our history state.
+      await window.electronAPI.ai.streamChat(_history.slice(), convoId);
     } catch (err) {
       _appendBubble('assistant', 'Something went wrong. Try again?');
     }
-  }
-
-  // Pull text out of each existing bubble so the model has context for
-  // multi-turn mobile-sheet chats. Role is inferred from the bubble's
-  // `data-role` attribute set in _appendBubble.
-  function _collectSheetHistory() {
-    const out = [];
-    document.querySelectorAll('.bloom-sheet-msg[data-role]').forEach(el => {
-      const role = el.getAttribute('data-role');
-      const content = (el.textContent || '').trim();
-      if ((role === 'user' || role === 'assistant') && content) {
-        out.push({ role, content });
-      }
-    });
-    return out;
   }
 
   function _appendBubble(role, text) {
@@ -266,11 +268,19 @@ const BloomSheet = (() => {
       _currentAssistantText = '';
     }
     _currentAssistantText += data.text || '';
-    _currentAssistantBubble.textContent = _currentAssistantText;
+    // Append a text node instead of rewriting textContent each delta —
+    // rewriting the whole string per tick is O(n²) across a long reply
+    // and forced a layout + repaint every ~20ms while streaming.
+    _currentAssistantBubble.appendChild(document.createTextNode(data.text || ''));
     _scrollToBottom();
   }
 
   function _onDone() {
+    // Commit the streamed assistant reply to history so it carries into
+    // the next turn's prompt.
+    if (_currentAssistantText) {
+      _history.push({ role: 'assistant', content: _currentAssistantText });
+    }
     _currentAssistantBubble = null;
     _currentAssistantText = '';
   }

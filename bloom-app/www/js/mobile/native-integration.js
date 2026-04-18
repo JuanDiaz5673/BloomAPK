@@ -35,10 +35,18 @@ const NativeIntegration = (() => {
   }
 
   function _handleBack({ canGoBack }) {
-    // 1) Any overlay first.
-    while (_backStack.length) {
-      const h = _backStack.pop();
-      try { if (h() !== false) return; } catch (err) { console.warn('[back] handler threw:', err); }
+    // 1) Any overlay first. Peek-don't-pop so handlers that return
+    // `false` (meaning "I didn't handle this — fall through to the
+    // next layer") stay registered for the next back press instead
+    // of being silently dropped from the stack.
+    for (let i = _backStack.length - 1; i >= 0; i--) {
+      const h = _backStack[i];
+      try {
+        if (h() !== false) { _backStack.splice(i, 1); return; }
+      } catch (err) {
+        console.warn('[back] handler threw:', err);
+        _backStack.splice(i, 1); // remove broken handler so we don't loop
+      }
     }
     // 2) If the Bloom sheet is open, close it.
     if (typeof BloomSheet !== 'undefined' && document.body.classList.contains('bloom-sheet-open')) {

@@ -152,14 +152,20 @@
   const api = {
     // ── Key/value store ──
     store: {
-      get: async (key) => _memory.get(key) ?? null,
+      // Validate on every verb, not just set. A malformed key shouldn't
+      // silently "work" on get/delete when set would have rejected it.
+      get: async (key) => {
+        if (!_keyAllowRe.test(String(key || ''))) return null;
+        return _memory.get(key) ?? null;
+      },
       set: async (key, value) => {
-        if (!_keyAllowRe.test(key)) throw new Error('Invalid key');
+        if (!_keyAllowRe.test(String(key || ''))) throw new Error('Invalid key');
         _memory.set(key, value);
         _persistStoreKey(key, value);
         return true;
       },
       delete: async (key) => {
+        if (!_keyAllowRe.test(String(key || ''))) return false;
         _memory.delete(key);
         _persistStoreKey(key, undefined);
         return true;
@@ -238,7 +244,13 @@
       // app.js use its canned fallback until we add greeting
       // generation properly.
       generateGreeting: async () => null,
-      listConversations: async () => Array.from(_conversations.values()).sort((a, b) => b.updatedAt - a.updatedAt),
+      listConversations: async () =>
+        Array.from(_conversations.values())
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+          // The desktop shape includes messageCount; home.js renders it
+          // directly. Ensure the mobile bridge returns the same field so
+          // the "Recent Conversations" card doesn't always show 0.
+          .map(c => ({ ...c, messageCount: Array.isArray(c.messages) ? c.messages.length : 0 })),
       getConversation: async (id) => _conversations.get(id) || null,
       deleteConversation: async (id) => { _conversations.delete(id); return { success: true }; },
       getProvider: async () => window._bloomAI?.getActive() ?? 'claude',

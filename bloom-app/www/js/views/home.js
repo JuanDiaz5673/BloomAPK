@@ -632,7 +632,7 @@ const HomeView = (() => {
               </div>
               <div class="file-info">
                 <div class="file-name">${_escapeHtml(c.title || 'Conversation')}</div>
-                <div class="file-size">${c.messageCount || 0} messages</div>
+                <div class="file-size">${c.messageCount ?? (Array.isArray(c.messages) ? c.messages.length : 0)} messages</div>
               </div>
             </div>
           `).join('');

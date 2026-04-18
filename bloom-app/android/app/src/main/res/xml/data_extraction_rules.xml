@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Blocks the auto-backup pipelines on Android 12+ for cloud backup
+  and device-to-device transfer. The app holds Google OAuth refresh
+  tokens (Drive + Calendar write scope) in Capacitor Preferences;
+  those must not leave the device via adb backup or Google's free
+  2GB cloud-backup bucket.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="sharedpref" />
+        <exclude domain="database" />
+        <exclude domain="file" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="sharedpref" />
+        <exclude domain="database" />
+        <exclude domain="file" />
+    </device-transfer>
+</data-extraction-rules>

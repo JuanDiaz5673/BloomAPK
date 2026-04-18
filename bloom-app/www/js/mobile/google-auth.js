@@ -97,11 +97,15 @@
     app.addListener('appUrlOpen', (event) => {
       const url = event?.url || '';
       if (!url.startsWith(REDIRECT_SCHEME + ':')) return;
+      // Always dismiss the Custom Tab when the URL matches our scheme —
+      // even if _pending is null (the sign-in timeout fired, or the
+      // user is re-opening via a stale link). Otherwise the browser
+      // tab stays on top of the app with nothing resolving it.
+      _browser()?.close().catch(() => {});
+      if (!_pending) return;
       const params = new URLSearchParams(url.split('?')[1] || '');
       const code = params.get('code');
       const err = params.get('error');
-      if (!_pending) return;
-      _browser()?.close().catch(() => {});
       if (err) { _pending.reject(new Error(`OAuth error: ${err}`)); _pending = null; return; }
       if (!code) { _pending.reject(new Error('OAuth callback missing code')); _pending = null; return; }
       _pending.resolve(code);
@@ -194,11 +198,18 @@
       code_challenge_method: 'S256',
     }).toString();
 
+    // Keep a handle to the timeout so resolve/reject can clear it —
+    // otherwise a stale 5-min timer from an earlier attempt could fire
+    // and kill a *new* _pending that started within the window.
+    let _timeoutId = null;
     const codePromise = new Promise((resolve, reject) => {
-      _pending = { resolve, reject };
-      // Safety timeout — if the user never returns from the browser
-      setTimeout(() => {
-        if (_pending) { _pending.reject(new Error('Sign-in timed out.')); _pending = null; }
+      const wrap = {
+        resolve: (v) => { clearTimeout(_timeoutId); resolve(v); },
+        reject:  (e) => { clearTimeout(_timeoutId); reject(e); },
+      };
+      _pending = wrap;
+      _timeoutId = setTimeout(() => {
+        if (_pending === wrap) { wrap.reject(new Error('Sign-in timed out.')); _pending = null; }
       }, 5 * 60 * 1000);
     });
 
