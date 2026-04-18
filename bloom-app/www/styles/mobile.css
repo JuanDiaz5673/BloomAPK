@@ -483,6 +483,35 @@
   .study-tile {
     flex: 1 1 0;
     min-height: 120px;
+    /* Tighten the default 24px/22px so the icon, text, and chevron
+       don't feel crowded when the tile also grows vertically. */
+    padding: 18px 16px !important;
+    gap: 14px !important;
+  }
+  .study-tile-icon {
+    width: 52px !important;
+    height: 52px !important;
+    flex-shrink: 0;
+  }
+  .study-tile-body {
+    min-width: 0; /* let description truncate cleanly */
+  }
+  .study-tile-title {
+    font-size: 20px !important;
+    line-height: 1.2;
+  }
+  .study-tile-desc {
+    font-size: 12px !important;
+    line-height: 1.45;
+    margin-top: 4px;
+  }
+  .study-tile-meta {
+    margin-top: 10px !important;
+    font-size: 10px !important;
+    letter-spacing: 0.8px !important;
+  }
+  .study-tile-arrow {
+    flex-shrink: 0;
   }
 
   /* Flashcards sub-page back-bar — stack into 2 rows so the title,

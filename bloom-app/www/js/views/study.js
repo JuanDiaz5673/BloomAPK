@@ -852,7 +852,21 @@ const StudyView = (() => {
     const cardsEl = document.getElementById('study-tile-cards-meta');
     if (cardsEl) {
       const deckCount = (_decks || []).length;
-      const dueTotal = (_decks || []).reduce((s, d) => s + d.dueCount + d.newCount, 0);
+      // Desktop decks already carry {dueCount,newCount} summaries.
+      // Mobile decks are raw {cards[]} — compute on the fly. `|| 0`
+      // guards against either side being undefined, otherwise
+      // undefined+undefined bubbled up as NaN and got displayed as
+      // "NAN CARDS DUE" (uppercased by the .study-tile-meta CSS).
+      const now = Date.now();
+      const dueTotal = (_decks || []).reduce((s, d) => {
+        if (typeof d.dueCount === 'number' || typeof d.newCount === 'number') {
+          return s + (d.dueCount || 0) + (d.newCount || 0);
+        }
+        if (Array.isArray(d.cards)) {
+          return s + d.cards.filter(c => (c.dueAt || 0) <= now).length;
+        }
+        return s;
+      }, 0);
       if (deckCount === 0) cardsEl.textContent = 'No decks yet';
       else if (dueTotal === 0) cardsEl.textContent = `${deckCount} deck${deckCount === 1 ? '' : 's'} · all caught up`;
       else cardsEl.textContent = `${deckCount} deck${deckCount === 1 ? '' : 's'} · ${dueTotal} card${dueTotal === 1 ? '' : 's'} due`;
