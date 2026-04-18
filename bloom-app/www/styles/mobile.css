@@ -40,12 +40,34 @@
     border: 1px solid rgba(var(--accent-primary-rgb), 0.22) !important;
   }
   .header-left h1 {
-    font-size: 22px !important;
+    /* Fluid — 5vw at 420px ≈ 21px, at 360px ≈ 18px. Max 22 so
+       tablets + landscape stay large. Min 16 so extra-small
+       screens still ellipsize gracefully instead of chopping
+       "Good evening, Juan" into "Good evening, Ju…". */
+    font-size: clamp(16px, 5vw, 22px) !important;
     line-height: 1.15;
   }
-  .header-left p {
-    font-size: 11px !important;
-    line-height: 1.4;
+  /* Subtitle ("Here's what's happening…") eats 3 lines of vertical
+     space next to the action icons on any phone. Hide it across the
+     whole mobile range — the title alone carries the "hello $name"
+     signal. Before: responsive.css only hid it at ≤400px, so
+     standard 412dp phones (Pixel 6/7/8) saw the wrap. */
+  .header-left p { display: none !important; }
+
+  /* Welcome card content: left-align on ALL phone sizes. Desktop
+     home.css sets .welcome-content { align-items: center } for
+     the side-by-side row layout; responsive.css flips to column
+     but leaves align-items:center, which horizontally-centered
+     the title, italic quote, and stats underneath. Push back to
+     flex-start so text reads like a normal left-aligned block. */
+  .home-view .welcome-content,
+  .dashboard-grid .welcome-content {
+    align-items: flex-start !important;
+  }
+  .home-view .welcome-text,
+  .dashboard-grid .welcome-text {
+    width: 100%;
+    text-align: left;
   }
   .header-right {
     gap: 6px;
