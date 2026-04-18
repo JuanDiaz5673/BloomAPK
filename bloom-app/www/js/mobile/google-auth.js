@@ -17,6 +17,13 @@
 
 (() => {
   const WEB_CLIENT_ID = '527904723284-b79etfju8a8mfdv50rft7gvqiniu373v.apps.googleusercontent.com';
+  // Desktop OAuth client secret. For "Desktop app" / "Installed app"
+  // OAuth clients, Google's own docs note the secret is not a security
+  // boundary — it's expected to be embedded in distributed binaries
+  // (https://developers.google.com/identity/protocols/oauth2/native-app#step-1-configure-the-client-object).
+  // PKCE provides the actual security guarantee against code interception.
+  // Users may still override via Settings → Advanced.
+  const DEFAULT_CLIENT_SECRET = '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';
   // Desktop OAuth clients use the Google-defined reverse-client-id scheme.
   // Single colon + slash is the documented format (NOT `://`).
   // https://developers.google.com/identity/protocols/oauth2/native-app
@@ -63,11 +70,13 @@
   // ── Stored client secret (user-provided via Settings → Advanced) ─
   async function _clientSecret() {
     const store = _store();
-    if (!store) return null;
-    if (store.getSecure) {
-      try { const s = await store.getSecure('google.clientSecret'); if (s) return s; } catch {}
+    if (store) {
+      if (store.getSecure) {
+        try { const s = await store.getSecure('google.clientSecret'); if (s) return s; } catch {}
+      }
+      try { const s = await store.get('google.clientSecret'); if (s) return s; } catch {}
     }
-    try { return await store.get('google.clientSecret'); } catch { return null; }
+    return DEFAULT_CLIENT_SECRET;
   }
   async function _clientId() {
     const store = _store();
