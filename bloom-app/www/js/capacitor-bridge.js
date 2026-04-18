@@ -179,6 +179,21 @@
         _persistStoreKey(key, undefined);
         return true;
       },
+      // Desktop exposes getSecure/setSecure backed by Electron safeStorage.
+      // Capacitor Preferences already encrypts-at-rest on Android via the
+      // platform keystore, so on mobile getSecure == get, setSecure == set.
+      // Keep both so settings.js's save path doesn't throw a TypeError
+      // and silently drop the OAuth client secret.
+      getSecure: async (key) => {
+        if (!_keyAllowRe.test(String(key || ''))) return null;
+        return _memory.get(key) ?? null;
+      },
+      setSecure: async (key, value) => {
+        if (!_keyAllowRe.test(String(key || ''))) throw new Error('Invalid key');
+        _memory.set(key, value);
+        _persistStoreKey(key, value);
+        return true;
+      },
     },
 
     // ── App / system ──
@@ -349,18 +364,46 @@
         window._bloomCalendar?.deleteEvent(calendarId, eventId) ?? _notImpl('Calendar delete')(),
       getUpcomingEvents: (days) => window._bloomCalendar?.getUpcomingEvents(days) ?? [],
       onAuthExpired: listenerRet,
+      // calendar.js subscribes via google.onCalendarChanged (not the
+      // calendar.* namespace). Provide the alias so AI-tool-driven
+      // event mutations can live-repaint the grid. Backed by the same
+      // window event google.* flows dispatch.
+      onCalendarChanged: (fn) => {
+        const handler = () => { try { fn(); } catch {} };
+        window.addEventListener('bloom:calendar-changed', handler);
+        return () => window.removeEventListener('bloom:calendar-changed', handler);
+      },
     },
     calendar: {
-      onCalendarChanged: listenerRet,
+      onCalendarChanged: (fn) => {
+        const handler = () => { try { fn(); } catch {} };
+        window.addEventListener('bloom:calendar-changed', handler);
+        return () => window.removeEventListener('bloom:calendar-changed', handler);
+      },
     },
     drive: {
-      listFiles: asyncArr,
-      searchFiles: asyncArr,
-      getFileAsDataUri: asyncNull,
-      openFile: () => _notImpl('Open Drive file'),
-      createFolder: () => _notImpl('Drive folder creation'),
-      uploadFile: () => _notImpl('Drive upload'),
-      deleteFile: asyncOk,
+      listFiles: (folderId, pageSize) =>
+        window._bloomDrive?.listFiles(folderId, pageSize) ?? [],
+      searchFiles: (q, pageSize) =>
+        window._bloomDrive?.searchFiles(q, pageSize) ?? [],
+      getFileAsDataUri: (id, mime) =>
+        window._bloomDrive?.getFileAsDataUri(id, mime) ?? null,
+      // Files view calls both `getDataUri` and `getFileAsDataUri`
+      // depending on code path — alias to keep it consistent.
+      getDataUri: (id, mime) =>
+        window._bloomDrive?.getFileAsDataUri(id, mime) ?? null,
+      openFile: (idOrUrl, webViewLink) =>
+        window._bloomDrive?.openFile(idOrUrl, webViewLink) ?? _notImpl('Open Drive file')(),
+      open: (idOrUrl, webViewLink) =>
+        window._bloomDrive?.openFile(idOrUrl, webViewLink) ?? _notImpl('Open Drive file')(),
+      createFolder: (parentId, name) =>
+        window._bloomDrive?.createFolder(parentId, name) ?? _notImpl('Drive folder creation')(),
+      // Upload from the webview needs a file picker we haven't built
+      // on mobile yet. Leave as a visible "not yet" so the UI can
+      // hide or disable the button rather than silently no-op.
+      uploadFile: () => _notImpl('Drive upload (mobile)'),
+      deleteFile: (fileId) =>
+        window._bloomDrive?.deleteFile(fileId) ?? { success: true },
     },
     notes: {
       list: (parentFolderId) => window._bloomNotes?.listNotes(parentFolderId) ?? [],
@@ -452,6 +495,11 @@
     recent: {
       list: asyncArr,
       add: asyncOk,
+      // The Files view calls track/forget to bump recently-opened items.
+      // Empty impls for now (Phase-4 follow-up), but real methods so
+      // callers don't trigger "X is not a function" TypeErrors.
+      track: asyncOk,
+      forget: asyncOk,
       clear: asyncOk,
     },
 

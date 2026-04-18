@@ -312,18 +312,29 @@ const SetupWizard = (() => {
 
     // Load preset thumbnails
     try {
-      const presets = ['flowers.png', 'sunset.png', 'ocean.png', 'forest.png', 'aurora.png', 'night.png'];
+      // Each entry is { key, file } — `key` matches ThemeEngine.PRESETS,
+      // `file` is the asset filename. Previously we used the filename
+      // as the data-preset attribute, but ThemeEngine.applyPreset does
+      // PRESETS[key] → undefined for "flowers.png" → silent no-op.
+      const presets = [
+        { key: 'flowers', file: 'flowers.png' },
+        { key: 'sunset',  file: 'sunset.png' },
+        { key: 'ocean',   file: 'ocean.png' },
+        { key: 'forest',  file: 'forest.png' },
+        { key: 'aurora',  file: 'aurora.png' },
+        { key: 'night',   file: 'night.png' },
+      ];
       const grid = document.getElementById('setup-theme-grid');
-      const thumbnailHTMLs = await Promise.all(presets.map(async (preset) => {
+      const thumbnailHTMLs = await Promise.all(presets.map(async ({ key, file }) => {
         try {
-          const path = await window.electronAPI.theme.getPresetPath(preset);
+          const path = await window.electronAPI.theme.getPresetPath(file);
           // Desktop returns an absolute filesystem path → needs file:// scheme.
           // Mobile bridge returns an http(s)-servable URL (absolute or
           // relative to the webview origin) → use as-is. Detecting by
           // whether the path starts with a URL scheme or a web-root "/".
           const isWebUrl = /^(https?:|\/)/i.test(path);
           const url = isWebUrl ? path : `file:///${path}`;
-          return `<div class="setup-theme-item" data-preset="${_escape(preset)}" style="background-image:url('${_escape(url).replace(/'/g, '%27')}');"></div>`;
+          return `<div class="setup-theme-item" data-preset="${_escape(key)}" style="background-image:url('${_escape(url).replace(/'/g, '%27')}');"></div>`;
         } catch {
           return '';
         }

@@ -437,11 +437,12 @@ const FilesView = (() => {
 
     try {
       if (_isGoogleNative(mimeType)) {
-        // Google Docs/Sheets/Slides — embed via webview
+        // Google Docs/Sheets/Slides — embed via iframe (Electron's
+        // <webview> tag doesn't exist in Android WebView; iframe works
+        // on both platforms).
         const embedUrl = webViewLink ? webViewLink.replace(/\/edit.*$/, '/preview') : '';
         if (embedUrl) {
-          content.innerHTML = `<webview src="${embedUrl}" style="width:100%;height:100%;border:none;"></webview>`;
-          // Webview has built-in zoom via Ctrl+scroll
+          content.innerHTML = `<iframe src="${embedUrl}" style="width:100%;height:100%;border:none;" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>`;
         } else {
           content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);">Cannot preview this file</div>`;
         }
@@ -465,9 +466,10 @@ const FilesView = (() => {
         </div>`;
         _setupZoomAndPan(content.querySelector('.preview-zoom-container'));
       } else if (mimeType.includes('pdf')) {
-        // PDFs — use webview for full Chromium PDF viewer (scroll, zoom, page nav)
+        // PDFs — use <iframe> for Chromium's built-in PDF viewer
+        // (Android WebView doesn't recognize Electron's <webview>).
         const { dataUri } = await window.electronAPI.drive.getDataUri(fileId, mimeType);
-        content.innerHTML = `<webview src="${dataUri}" style="width:100%;height:100%;border:none;"></webview>`;
+        content.innerHTML = `<iframe src="${dataUri}" style="width:100%;height:100%;border:none;"></iframe>`;
       } else if (mimeType.includes('text') || mimeType.includes('json') || mimeType.includes('javascript') || mimeType.includes('xml') || mimeType.includes('css') || mimeType.includes('html') || mimeType.includes('plain')) {
         // Text files — download and show with zoom
         const { dataUri } = await window.electronAPI.drive.getDataUri(fileId, mimeType);

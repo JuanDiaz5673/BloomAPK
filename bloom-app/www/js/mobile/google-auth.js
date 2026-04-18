@@ -241,6 +241,11 @@
     await store?.delete(REFRESH_KEY);
     await store?.delete(EXPIRY_KEY);
     await store?.delete(PROFILE_KEY);
+    // Notify open views so stale calendar/notes/files data resets
+    // without the user having to navigate away and back.
+    try {
+      window.dispatchEvent(new CustomEvent('bloom:google-disconnected'));
+    } catch {}
     return { success: true };
   }
 

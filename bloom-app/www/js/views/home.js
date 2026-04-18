@@ -271,6 +271,10 @@ const HomeView = (() => {
   // unauthed placeholders; this event repaints the cards as soon as a
   // token exists.
   window.addEventListener('bloom:google-connected', () => _debouncedRefetch());
+  // Sign-out should immediately reset the cards to their unauthed
+  // placeholders instead of leaving stale events/notes/files visible
+  // until the user navigates away and back.
+  window.addEventListener('bloom:google-disconnected', () => _debouncedRefetch());
 
   // Re-render just the Recent Conversations card whenever the bridge
   // appends a user/assistant message. Full dashboard refetch would
