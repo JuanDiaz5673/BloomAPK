@@ -2,17 +2,20 @@
 
 Guidance for Claude Code when working on the Android port of Bloom.
 
-## What this repo is
+## Where we are
 
-A Capacitor 6 scaffold that ships the Bloom renderer (originally built for Electron / Windows) as an Android APK. **Phase 1 scope**: UI renders, backend services are stubbed. Phase 2-5 add real implementations piece by piece.
+Capacitor 6 port of the desktop Bloom app (Electron → Android APK). We are **past Phase 1 (UI-only scaffold)** and **through most of Phase 3 + Phase 4**. The app currently has working Google sign-in, Calendar, Notes, Drive, Flashcard sync, AI chat, and a mobile-first responsive UI.
 
-- **Parent desktop project**: `C:\Projects\AllDash` (GitHub: https://github.com/JuanDiaz5673/Bloom)
-- **This repo**: `C:\Projects\BloomAPK` (GitHub: https://github.com/JuanDiaz5673/BloomAPK — public)
-- **Phase roadmap**: see `HANDOFF.md`
+- **Parent desktop project**: `C:\Projects\AllDash` — source of truth for renderer views + services
+- **This repo**: `C:\Projects\BloomAPK` — public at https://github.com/JuanDiaz5673/BloomAPK
+- **Active release**: `v0.3.0-phase3` (prerelease, debug APK attached to each commit via `gh release upload … --clobber`)
+- **Default branch**: `master`
+
+If you're a fresh Claude picking this up: read the whole doc (it's short) then `git log --oneline -15` to see what was just touched. The “Gotchas we hit” section below is where the hard-won knowledge lives.
 
 ## Build commands
 
-All builds use the self-contained toolchain under `tools/` — no system JDK / Android SDK required.
+Self-contained toolchain under `tools/` — no system JDK / Android SDK required.
 
 ```bash
 # Source env vars every new shell. Sets JAVA_HOME to bundled JDK 17
@@ -20,186 +23,231 @@ All builds use the self-contained toolchain under `tools/` — no system JDK / A
 source env.sh
 
 # After editing anything under bloom-app/www/, re-sync before building:
-cd bloom-app
-npx cap sync android
+cd bloom-app && npx cap sync android
 
 # Build debug APK:
-cd android
-./gradlew assembleDebug
+cd android && ./gradlew assembleDebug
 # Output: android/app/build/outputs/apk/debug/app-debug.apk
 
-# Copy to dist/ for distribution:
+# Copy + install (uses bundled adb, not the one on PATH):
 cp app/build/outputs/apk/debug/app-debug.apk ../../dist/Bloom-debug.apk
+cd ../.. && ./tools/android-sdk/platform-tools/adb.exe install -r dist/Bloom-debug.apk
 ```
 
-**Re-installing on a connected device**:
-```bash
-source env.sh
-adb install -r dist/Bloom-debug.apk
-# If you hit INSTALL_FAILED_UPDATE_INCOMPATIBLE, uninstall first:
-adb uninstall com.bloom.app
-```
+System `adb` isn't always on PATH on Git Bash — use the bundled one at `./tools/android-sdk/platform-tools/adb.exe`. `source env.sh` *should* put it on PATH but a subshell in `cd …` can lose it; the explicit path always works.
+
+### Reinstall troubleshooting
+
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE` → debug keystore mismatch. Fix: `adb uninstall com.bloom.app`, retry. This happens if you build on a different machine or if Gradle regenerates the debug keystore.
 
 ## Architecture
 
-### The bridge pattern — `www/js/capacitor-bridge.js`
+### Bridge pattern — `www/js/capacitor-bridge.js`
 
-This is the critical file. The Bloom renderer was written against Electron's `window.electronAPI` (~50 IPC methods from `src/main/preload.js` in the parent repo). Rewriting every view for Android would take weeks.
+This is the most important file. The renderer was written against Electron's `window.electronAPI` (~50 methods). The bridge exposes the same object on Android, shimming each call into a Capacitor plugin, a mobile-only service module, or a stub.
 
-Instead, `capacitor-bridge.js` stubs the **entire** `electronAPI` surface with async no-ops, so the renderer boots cleanly:
-
-- `listDecks()` → `[]`
-- `generateGreeting()` → `null` (renderer has a canned-fallback greeting)
-- `streamChat()` → shows a friendly "coming soon" toast
-- `getStats()` → zero-filled stats struct with today's date
-- `store.get(key)` → Capacitor Preferences lookup, with localStorage fallback for desktop-browser preview
-
-**Rule for porting a backend feature to mobile**: replace that one bridge method with a real Capacitor plugin call. **Zero view code changes** — views keep calling `window.electronAPI.foo.bar()` and don't need to know the implementation changed.
+**Rule when porting a backend feature**: write a mobile-only module in `www/js/mobile/<feature>.js` that exports `window._bloomX = {…}`, then point the matching `electronAPI.x.*` bridge method at it. **Zero view code changes** — views keep calling `window.electronAPI.foo.bar()`.
 
 Think of the bridge as the "Android half" of the IPC contract that the Electron preload is the "desktop half" of.
 
-### Mobile UI — `www/styles/mobile.css` + `www/js/components/bottom-nav.js` + `www/js/components/bloom-sheet.js`
+### Current wiring status per namespace
 
-All mobile adaptations flip at a SINGLE breakpoint: `@media (max-width: 768px)`. Desktop layout is untouched above 768px — useful for landscape tablets.
+| Namespace | Backing | Status |
+|---|---|---|
+| `electronAPI.store.*` | Capacitor Preferences (in-memory cache hydrated async via `window._storeReady`) | ✅ get/set/delete + secure-variants. Key allowlist regex validates every verb. |
+| `electronAPI.app.*` | Capacitor App + Browser plugins | ✅ openExternal, quit, lifecycle |
+| `electronAPI.ai.*` | `www/js/mobile/ai-providers.js` | ✅ streamChat for Claude/Gemini/OpenRouter. Stores conversations in an in-memory Map, persists in Preferences. Emits `claude:stream-delta/done/error`. Dispatches `bloom:conversations-changed` on every `_appendConvo`. |
+| `electronAPI.claude.*` | Shares AI conversation store | ✅ listConversations / getConversation / deleteConversation. Emits `messageCount` alongside the raw convo object. |
+| `electronAPI.google.*` | `www/js/mobile/google-auth.js` + `google-calendar.js` | ✅ full surface. PKCE browser OAuth (see OAuth section below). Calendar list/get/create/update/delete/getUpcoming. signIn dispatches `bloom:google-connected`, signOut dispatches `bloom:google-disconnected`. onCalendarChanged aliased under both `google.*` and `calendar.*` namespaces. |
+| `electronAPI.notes.*` | `www/js/mobile/google-notes.js` | ✅ list/get/create/update/delete + createFolder/deleteFolder/getRootId/getRecent. Supports TipTap JSON envelope format (matches desktop). `deleteNote(id, {cascadeChildren})` walks the sub-page tree. |
+| `electronAPI.drive.*` | `www/js/mobile/google-drive.js` | ✅ listFiles/searchFiles/createFolder/deleteFile/getDataUri/openFile/uploadFile. Upload uses a hidden `<input type="file" multiple>` + multipart POST to `upload.googleapis.com` with a 100 MB cap. Aliased: `getDataUri`/`getFileAsDataUri` + `open`/`openFile`. |
+| `electronAPI.study.*` | `www/js/mobile/study-store.js` (Capacitor Filesystem) + `study-sync.js` (Drive pull/push) | ✅ CRUD + sync. Debounced 4s push per mutation; pull on sign-in, mount, and every 5 min. Status broadcast via `bloom:study-sync-status`. Mutation hook (`onMutate`) for anything that wants to react. |
+| `electronAPI.theme.*` | Bridge serves `/assets/images/backgrounds/<file>` URLs | ✅ presets render; theme-engine applies palette via `ThemeEngine.applyPreset(key)` (note: key, NOT filename — this was a bug). |
+| `electronAPI.recent.*` | Stubs (asyncOk) | 🟡 track/forget/add/clear no-op. Files view calls them; no UX impact beyond the Home "Recent Files" tile being empty-until-you-browse. |
+| `electronAPI.files.*` | N/A on Android | 🟡 local FS stubs return empty. Drive is the "file system" on mobile — see `drive.*`. |
+| `electronAPI.analytics.*` | Console log | 🟡 placeholder. |
 
-Mobile-specific patterns:
-- **Bottom nav**: 4 tabs (Home / Study / Calendar / Notes) + centered raised Bloom FAB that opens the ambient chat bottom-sheet. Settings moves to the header avatar tap; Files becomes a card inside Home; Chat becomes the FAB (demoting it to a tab would contradict Bloom's "ambient, not a destination" DNA).
-- **Bloom bottom-sheet** (`bloom-sheet.js`): replaces the desktop sidebar ambient panel. Drag-to-expand (55vh default → 92vh expanded), tap overlay or close button to dismiss. Reuses the existing AI stream event listeners (`claude:stream-delta` etc.) so when Phase 2 wires up real AI, this sheet streams responses automatically.
-- **Glass blur reduced**: `--glass-blur: 16px` on mobile (down from desktop 24px); at ≤400px it drops further to 14px. Mobile GPUs are weaker and there's less overlap to "peer through" on a phone.
-- **Bottom-nav self-gates**: `BottomNav.init()` + `BloomSheet` no-op above 768px, so they're safe to load unconditionally.
+**Event bus** (always dispatched on `window`, all CustomEvent-based):
 
-### Theme engine preserved
+- `bloom:google-connected` — tokens persisted, profile fetched. Listened by: home, header, study-sync, notes listeners.
+- `bloom:google-disconnected` — tokens cleared. Listened by: home, header, study-sync.
+- `bloom:conversations-changed` — chat message appended. Listened by: home "Recent Conversations" card.
+- `bloom:decks-changed` — study-sync pulled a deck. Listened by: study view, home "Recent Flashcards" card.
+- `bloom:study-sync-status` — { state, lastSyncAt, pendingCount, authed } transitions. Bridge routes study.onSyncStatus to this.
+- `bloom:calendar-changed` — reserved for AI-tool event mutations. Listened by: calendar view.
 
-All colors in `mobile.css` go through `--accent-*-rgb` CSS vars. Theme switching applies to the bottom nav, FAB, and sheet automatically — same engine as desktop (`theme-engine.js`).
+### Mobile UI + responsive design
 
-### Toolchain self-containment
+Three breakpoint tiers + `clamp()` fluid type for major headings. All inside `www/styles/mobile.css`:
 
-`tools/` has a complete JDK 17 (Adoptium Temurin) + Android SDK 34 + platform-tools. Not checked into git (see `.gitignore`). Gradle picks these up via:
+1. **≤ 768px** — baseline mobile. Bottom-nav, glass-card full-width, single-column grids.
+2. **≤ 400px** — iPhone SE / Pixel 4a tier. Tighter setup-wizard padding, 2-col theme grid, calendar title ellipsifies, notes toolbar buttons ≥ 40×40, Bloom-sheet grab-handle hit zone 4 → 32px.
+3. **≤ 360px** — budget Android / Galaxy mini. Reduced glass-blur (GPU), narrower nav labels, stat pills smaller, settings input-groups stack vertically.
+4. **@media (max-height: 600px) and (orientation: landscape)** — split-screen + phone landscape. Hero icons hide, mascot min-height drops.
 
-- `android/gradle.properties`: `org.gradle.java.home=C:/Projects/BloomAPK/tools/jdk-17.0.18+8`
-- `android/local.properties`: `sdk.dir=C:/Projects/BloomAPK/tools/android-sdk`
+Verify changes across sizes with `adb shell wm size <W>x<H>` + `wm density <dpi>` and `wm size reset` afterward. See 0061663 for the audit + plan writeup.
 
-**Always forward slashes in these paths on Windows.** Backslashes get interpreted as escape sequences and Gradle dies with "The filename, directory name, or volume label syntax is incorrect."
+### Mobile-only views / components
 
-If someone clones this repo fresh, they'll need to re-download the toolchain:
-```bash
-mkdir -p tools
-cd tools
-# JDK 17:
-curl -L -o jdk17.zip "https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse"
-unzip -q jdk17.zip && rm jdk17.zip
-# Android command-line tools:
-curl -L -o cmdline-tools.zip "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip"
-mkdir -p android-sdk/cmdline-tools
-unzip -q cmdline-tools.zip -d android-sdk/cmdline-tools
-mv android-sdk/cmdline-tools/cmdline-tools android-sdk/cmdline-tools/latest
-rm cmdline-tools.zip
-# Accept licenses + install platforms/build-tools:
-source ../env.sh
-yes | sdkmanager.bat --licenses
-sdkmanager.bat "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+- **Bottom nav** (`www/js/components/bottom-nav.js`) — 4 tabs (Home / Study / Calendar / Notes) + centered raised Bloom FAB. Self-gates above 768px.
+- **Bloom bottom-sheet** (`www/js/components/bloom-sheet.js`) — replaces desktop sidebar ambient panel. Drag-to-expand (55vh default → 92vh). In-memory `_history` keyed to `window._activeConversationId` — rebinds on convo change. Error path pops the user turn to keep Claude's strict alternation.
+- **Setup wizard** (`www/js/components/setup-wizard.js`) — Google → AI key → theme. Skips entirely if `google.getStatus()` is already authenticated (marks `hasCompletedSetup=true` on the spot). Theme `data-preset` must be the `PRESETS` **key** (`flowers`), not the filename.
+
+## Gotchas we hit and the fixes
+
+These ate real time. Future Claudes: read before you debug.
+
+### OAuth Desktop client + reverse-client-id URI scheme
+
+The user's existing OAuth client is a **Desktop** type (not Web — the page header in Cloud Console literally says "Client ID for Desktop"). Desktop clients use a Google-defined custom URI scheme of the form:
+
+```
+com.googleusercontent.apps.<reversed-client-id>:/oauth/callback
 ```
 
-Consider scripting this into `tools/setup.sh` next session.
+This scheme is registered in `AndroidManifest.xml` as an intent-filter on `MainActivity`. The intent-filter's `android:scheme` must match the reversed client ID exactly. Current value: `com.googleusercontent.apps.527904723284-b79etfju8a8mfdv50rft7gvqiniu373v`.
+
+- `com.bloom.app://` or any other custom scheme → Google returns `Error 400: invalid_request` because Web clients don't allow custom schemes and Desktop clients only allow this specific format.
+- PKCE alone isn't enough — Google requires the client_secret for Desktop token exchange. Per Google's installed-app docs, the secret is **not** a security boundary for native apps (PKCE is) and is safe to embed. It's hardcoded in `google-auth.js` as `DEFAULT_CLIENT_SECRET`. Users can still override via Settings → Advanced.
+- Full scope `https://www.googleapis.com/auth/drive` (not `drive.file`) — matches desktop and lets the Files view list arbitrary user folders. It's a restricted scope; the user must be on the consent screen's test-user list.
+- The secret triggered GitHub secret-scanning push protection. Bypass URL was approved once; future rotation would require re-approval.
+
+### Capacitor Filesystem enum values are UPPERCASE
+
+**Bug**: `directory: 'Data'` → `Directory.valueOf("Data")` fails silently on Android → null File → `File.exists()` / `File.mkdirs()` → NPE on the CapacitorPlugins HandlerThread → **hard app crash** (JS try/catch can't catch native thread exceptions).
+
+**Fix**: always pass the enum VALUE (`'DATA'`, `'DOCUMENTS'`, `'CACHE'`, `'EXTERNAL'`), not the TypeScript key. This single bug was the root cause of BOTH the Study tab crash AND flashcards not syncing (the sync pull's first step is mkdir).
+
+### Cold-start race: `window._storeReady`
+
+The bridge hydrates Capacitor Preferences into `_memory` (in-memory Map) asynchronously. If any consumer reads the store BEFORE that hydration completes, they see an empty map and decide "unauthed" / "no profile". Exposed promise: `window._storeReady`. Always `await` it before auth-gated reads on cold start.
+
+Currently awaited by: `study-sync.start()`, `header.updateWithProfile()`, `header.restoreCachedAvatar()`.
+
+If you add another cold-start reader, await it or you'll get intermittent "profile picture missing" / "not authenticated" bugs.
+
+### Play Services / Credential Manager — avoid
+
+We tried two native-sign-in plugins and both failed on the emulator's older Play Services:
+
+- `@codetrix-studio/capacitor-google-auth` — returns code 10 (DEVELOPER_ERROR) for any OAuth client created after mid-2024. Abandoned.
+- `@capgo/capacitor-social-login` — uses Credential Manager (GetSignInWithGoogleOption). Returns `NoCredentialException` on emulators with Play Services <24.x. Abandoned.
+
+The current approach (Chrome Custom Tab + PKCE) works on any Android version with no Play Services dependency. Don't re-add either plugin unless you have a strong reason.
+
+### View-mount race after Google sign-in
+
+The `bloom:google-connected` event fires reliably, but the home view was sometimes mounted before the event OR its DOM-mutation path conflicted with the wizard's re-render. Fix: `Router.navigate(viewName, { force: true })` re-runs the teardown/render/init cycle on the current view. Called from setup-wizard after sign-in AND in wizard `close()`. Belt-and-suspenders with the event bus.
+
+### AndroidManifest security
+
+- `android:allowBackup="false"` + `@xml/data_extraction_rules` blocks every auto-backup pipeline. OAuth refresh tokens never land in adb backups or the 2GB cloud-backup bucket. Don't flip it back.
+- Custom URI intent-filter on MainActivity MUST have `android:exported="true"` (Android 12+). MainActivity already does — new activities added for OAuth handoff need the same.
+
+### Web-only tags that fail on Android
+
+`<webview>` is Electron-specific. Use `<iframe>` for Drive file preview (Google Docs/Sheets/Slides, PDFs). Sandbox attributes: `allow-same-origin allow-scripts allow-popups allow-forms`.
+
+### bloom-sheet `streamChat` signature
+
+Bridge expects `(messages: Array<{role,content}>, conversationId)`. Passing a single `{message, conversationId}` object → provider adapters' `.filter(...)` calls blow up with "messages.filter is not a function". Current bloom-sheet keeps a canonical `_history` array in memory, rebinds on convoId change, and pops the last user turn on error to preserve Claude's strict alternation.
+
+### Android back-button stack
+
+Handlers that return `false` mean "I didn't handle this — fall through." Previously we popped unconditionally, silently dropping those handlers. Current impl in `native-integration.js` peeks + splices only on handled-or-thrown.
 
 ## Capacitor 6 — why not 7
 
-Capacitor 7 requires Node 22+. The user is on Node 18 (v18.15.0 specifically). Don't upgrade Capacitor without first confirming the Node environment — v7 hard-fails at CLI startup with `[fatal] The Capacitor CLI requires NodeJS >=22.0.0`.
-
-If Node is ever upgraded, `npm upgrade @capacitor/*` + `npx cap sync` handles the migration.
+Capacitor 7 requires Node 22+. User is on Node 18. v7 hard-fails at CLI startup. If Node is ever upgraded: `npm upgrade @capacitor/*` + `npx cap sync` handles migration.
 
 ## Asset paths
 
-The Electron renderer lived at `src/renderer/index.html` with `assets/` two levels up. In Capacitor, both are inside `www/`, so `../../assets/` was rewritten to `assets/` by a one-time script at project setup.
+Electron renderer was at `src/renderer/index.html` with `assets/` two levels up. In Capacitor both are under `www/` — `../../assets/` was rewritten to `assets/`. When copying new files from the desktop repo, re-apply: `../../assets/` → `assets/`.
 
-**When copying new files from the desktop repo**: remember that `../../assets/` paths need fixing. Use this regex: `../../assets/` → `assets/`.
+## Plugin quick-reference (installed)
 
-## Plugin quick-reference (Capacitor 6)
-
-Installed:
-- `@capacitor/core` — base runtime
-- `@capacitor/android` — Android platform
-- `@capacitor/app` — lifecycle events (backButton!)
-- `@capacitor/browser` — `openExternal` replacement
-- `@capacitor/filesystem` — for Phase 4 study-store port
+- `@capacitor/core` / `@capacitor/android` — base
+- `@capacitor/app` — lifecycle + backButton
+- `@capacitor/browser` — OAuth Custom Tab + openExternal
+- `@capacitor/filesystem` — study-store local cache
 - `@capacitor/haptics` — grade taps / card flip feedback
-- `@capacitor/keyboard` — virtual keyboard handling (already in capacitor.config.json)
-- `@capacitor/preferences` — key-value store, currently backs `electronAPI.store.*`
-- `@capacitor/status-bar` — status bar color + style
+- `@capacitor/keyboard` — virtual keyboard + resize
+- `@capacitor/local-notifications` — Pomodoro alerts
+- `@capacitor/preferences` — backs `electronAPI.store.*`
+- `@capacitor/status-bar` — color + style
 
-NOT yet installed but needed for later phases:
-- `@capacitor-community/http` OR native fetch — streaming AI responses (Phase 2)
-- `@capacitor-community/google-sign-in` OR `@codetrix-studio/capacitor-google-auth` — Google OAuth (Phase 3)
-- `@capacitor/local-notifications` — Pomodoro alerts (Phase 2 / 4)
-- `@capacitor/live-updates` — OTA web-asset updates (Phase 5 nice-to-have)
+Intentionally **not** installed (after trying):
+- `@codetrix-studio/capacitor-google-auth` — Play Services plugin, doesn't work
+- `@capgo/capacitor-social-login` — Credential Manager, doesn't work on older Play Services
+
+Not yet installed but may want:
+- `@capacitor/live-updates` — OTA web-asset updates (Phase 5)
 
 ## Things to watch out for
 
-### Android back button
-Currently unhandled → every tap closes the app. Should hook `App.addListener('backButton', ...)` to navigate the SPA instead. Probably: close overlays first, then `Router.goBack()`, then exit if at root Home. Add in `www/js/app.js`.
+- **Toolchain paths must use forward slashes on Windows.** `android/gradle.properties` `org.gradle.java.home=C:/Projects/BloomAPK/tools/jdk-17.0.18+8`. Backslashes break Gradle silently.
+- **`POST_NOTIFICATIONS` on Android 13+** — declared in manifest but needs runtime request before the first `LocalNotifications.schedule`. If Pomodoro alerts silently fail, that's why.
+- **StatusBar color vs theme** — hardcoded `#0f050a` in `capacitor.config.json`. When user picks a light theme it looks wrong. Theme-engine should call `StatusBar.setBackgroundColor` on palette change.
+- **OAuth scope changes require re-sign-in.** We upgraded `drive.file` → `drive` in commit `b558748`; tokens from before that commit only have `drive.file` and will 403 on arbitrary-folder listing.
+- **`git push` may trip secret scanning** on the OAuth client ID/secret in `google-auth.js`. Bypass URLs in the rejection message; follow them once — they're per-commit.
+- **Never commit `tools/`, `*.keystore`, `local.properties`.** `.gitignore` covers them.
 
-### `POST_NOTIFICATIONS` runtime prompt
-Declared in `AndroidManifest.xml` but never requested at runtime — on Android 13+ this means Pomodoro notifications silently fail. When wiring up notifications (Phase 2/4), request the permission first: `LocalNotifications.requestPermissions()`.
+## Phase 1 deferred items — status today
 
-### StatusBar color vs theme
-Hardcoded to `#0f050a` in `capacitor.config.json`. When a user switches to a light theme, the status bar looks wrong. Theme engine should emit `StatusBar.setBackgroundColor({ color })` whenever the palette changes.
-
-### `INSTALL_FAILED_UPDATE_INCOMPATIBLE`
-Happens when re-installing a debug build over an older debug build from a different keystore (e.g. if someone else built on their machine). Fix: `adb uninstall com.bloom.app` then retry.
-
-### `android:exported` and deep links
-When Phase 3 adds Google OAuth, the redirect intent-filter MUST have `android:exported="true"` (Android 12+ requirement). The MainActivity already has it; any new Activity for OAuth handoff will need the same.
-
-### Never commit `tools/`, `*.keystore`, `local.properties`
-The `.gitignore` already covers these. Don't remove those lines.
-
-## What Phase 1 explicitly does NOT try to do
-
-These were deferred because they need things only the user can provide:
-
-- **Google OAuth client ID** — needs the user's Google Cloud Console. Documented in `HANDOFF.md` with exact keytool command to get the SHA-1.
-- **Release keystore** — user generates, backs up. `./gradlew assembleRelease` will fail until this exists.
-- **Physical device smoke test** — build succeeded but no one has yet verified the APK launches on a real phone.
-- **AI provider wiring** — keys can't be stored securely without a native Keystore plugin. Bridge stubs return "coming soon".
+| Item | Current status |
+|---|---|
+| Google OAuth client ID | ✅ Desktop client; reverse-id scheme in manifest. Works. |
+| Release keystore | ❌ Still deferred. `./gradlew assembleRelease` will fail until generated. |
+| Physical device smoke test | 🟡 emulator-verified extensively; no physical-device test yet. |
+| AI provider wiring | ✅ Claude, Gemini, OpenRouter. Keys in Preferences (Android-keystore-encrypted). |
 
 ## When to edit here vs the desktop repo
 
-| Change kind | Edit in desktop (`AllDash`) | Edit in mobile (`BloomAPK`) |
+| Change kind | Edit in desktop (AllDash) | Edit in mobile (BloomAPK) |
 |---|---|---|
-| Renderer view / component shared between platforms | ✅ edit in `src/renderer/` then re-copy to `bloom-app/www/` (manual until we have a sync script) | ❌ don't drift |
-| Electron main-process service | ✅ edit in `src/main/services/` | bridge stub may need update in `capacitor-bridge.js` |
-| Mobile-only layout (bottom nav, sheet, safe area) | ❌ leave desktop alone | ✅ edit `www/styles/mobile.css` or `www/js/components/bottom-nav.js` / `bloom-sheet.js` |
-| Theme / CSS vars | ✅ edit in desktop `variables.css` then copy | shared file, keep in sync |
-| Android manifest / plugin config | ❌ N/A | ✅ `android/app/src/main/AndroidManifest.xml` + `capacitor.config.json` |
+| Renderer view / component shared between platforms | ✅ edit in `src/renderer/`, copy to `bloom-app/www/` | ❌ don't drift |
+| Electron main-process service | ✅ edit in `src/main/services/` | update the matching bridge stub + mobile service module |
+| Mobile-only layout (bottom nav, sheet, safe area, responsive breakpoints) | ❌ leave desktop alone | ✅ edit `www/styles/mobile.css` or the mobile component |
+| Theme CSS vars | ✅ edit desktop `variables.css`, copy | shared file |
+| Android manifest / plugin config / mobile services | ❌ N/A | ✅ |
 
-**Sync workflow (until automated)**: when you change `src/renderer/*` in the desktop repo, re-run:
+**Sync workflow** (manual until automated):
 ```bash
 cp -r "C:/Projects/AllDash/src/renderer/"* "C:/Projects/BloomAPK/bloom-app/www/"
 cp -r "C:/Projects/AllDash/assets" "C:/Projects/BloomAPK/bloom-app/www/assets"
-# Re-fix asset paths (view files may have them):
-cd "C:/Projects/BloomAPK/bloom-app"
-node -e "/* rewrite ../../assets/ to assets/ in www/**/*.{html,css,js} */"
+# Re-fix asset paths if any new view files came across
 # Then:
-npx cap sync android
+cd C:/Projects/BloomAPK/bloom-app && npx cap sync android
 ```
 
-Consider a `tools/sync-from-desktop.sh` script next session.
+## Release workflow
 
-## GitHub release workflow
+Every meaningful change gets built, installed on the emulator, and uploaded to the active GitHub release:
 
 ```bash
-# Build fresh:
 source env.sh
 cd bloom-app && npx cap sync android
 cd android && ./gradlew assembleDebug
-cp app/build/outputs/apk/debug/app-debug.apk ../../dist/Bloom-debug.apk
+cd ../.. && cp bloom-app/android/app/build/outputs/apk/debug/app-debug.apk dist/Bloom-debug.apk
 
-# Create release (adjust version):
-cd ../..
-gh release create v0.X.Y-phaseN dist/Bloom-debug.apk \
-  --title "v0.X.Y — Phase N: <what landed>" \
-  --prerelease \
-  --notes "..."
+# Install on running emulator:
+./tools/android-sdk/platform-tools/adb.exe install -r dist/Bloom-debug.apk
+
+# Ship:
+git add -A && git commit -m "…" && git push origin master
+gh release upload v0.3.0-phase3 dist/Bloom-debug.apk --clobber
 ```
 
-Pre-release flag stays on until Phase 5 (release-signed APK suitable for Play Store internal testing).
+New major phase? Create a new release: `gh release create v0.X.Y-phaseN dist/Bloom-debug.apk --title "…" --prerelease --notes "…"`. Keep `--prerelease` until we have a release-signed AAB for Play Store.
+
+## Resuming in a new session
+
+Checklist for a fresh Claude to get oriented:
+
+1. **Read this doc end-to-end.** (Cheap — it's not long.)
+2. `git log --oneline -10` — see the last few commits and their shapes.
+3. `git status` — anything uncommitted?
+4. `./tools/android-sdk/platform-tools/adb.exe devices` — is the emulator running?
+5. If the user is reporting a bug: reproduce on the emulator first. Tail logcat with `adb logcat -d | grep -iE "FATAL|Capacitor/Console|error"`. The bugs are often one of the gotchas above.
+6. Before shipping: build + install, then commit → push → `gh release upload … --clobber`. Keep the release fresh so the user can sideload without rebuilding.
+7. The user prefers **direct fixes over long investigations**. When you have the root cause, apply it and report back concisely.
