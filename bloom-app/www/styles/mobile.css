@@ -94,6 +94,14 @@ html {
     height: 40px !important;
     /* Touch target */
   }
+  /* Pomo pill lives in the same row — match the bumped 40px height so
+     it aligns with the icon buttons and avatar instead of sitting 4px
+     shorter. Border-radius nudges up a hair so the rounded-square
+     proportion still feels right at the taller size. */
+  .pomo-pill {
+    height: 40px !important;
+    border-radius: 14px !important;
+  }
 
   /* ── View container ────────────────────────────────────────────
      On mobile the view-container scrolls; give it the safe-area
