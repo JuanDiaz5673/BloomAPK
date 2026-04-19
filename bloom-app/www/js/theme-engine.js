@@ -262,6 +262,26 @@ const ThemeEngine = (() => {
       .replace(/\n/g, '');
   }
 
+  /**
+   * Build the final CSS url() value for a custom background. On desktop
+   * the renderer gets a filesystem path and needs `file://` prefixed.
+   * On mobile (Capacitor) we get a `data:image/jpeg;base64,...` URI
+   * straight from theme-store.js — those must NOT be prefixed (the
+   * resulting `file://data:...` would silently fail to load and the
+   * background would just stay default).
+   *
+   * Also covers https:// (sync from a future cloud-stored theme),
+   * blob:, and any other absolute URL scheme.
+   */
+  function _buildCustomBgUrl(rawPath) {
+    const safe = _safeCssUrl(rawPath);
+    if (!safe) return '';
+    // Already absolute — pass through unchanged.
+    if (/^(?:data:|https?:|blob:|file:)/i.test(safe)) return safe;
+    // Plain filesystem path — desktop convention.
+    return `file://${safe}`;
+  }
+
   async function applyTheme(imagePath) {
     // Set background image
     document.body.style.backgroundImage = `url("${_safeCssUrl(imagePath)}")`;
@@ -308,9 +328,11 @@ const ThemeEngine = (() => {
   }
 
   async function applyCustomImage(customTheme) {
-    // customTheme = { id, path, name } from IPC
+    // customTheme = { id, path, name } from IPC. On mobile, `path` is
+    // a `data:image/jpeg;base64,...` URI from theme-store. On desktop
+    // it's an absolute filesystem path. _buildCustomBgUrl handles both.
     const filePath = customTheme.path || customTheme;
-    const cssUrl = `file://${_safeCssUrl(filePath)}`;
+    const cssUrl = _buildCustomBgUrl(filePath);
     document.body.style.backgroundImage = `url("${cssUrl}")`;
 
     const palette = await extractColors(cssUrl);
@@ -342,7 +364,7 @@ const ThemeEngine = (() => {
       // so a poisoned `customPath` / `imagePath` in the persisted store can't
       // break out of the url() literal and inject arbitrary CSS.
       if (theme.customPath) {
-        document.body.style.backgroundImage = `url("file://${_safeCssUrl(theme.customPath)}")`;
+        document.body.style.backgroundImage = `url("${_buildCustomBgUrl(theme.customPath)}")`;
       } else if (theme.preset) {
         const preset = PRESETS[theme.preset];
         if (preset) {

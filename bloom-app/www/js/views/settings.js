@@ -902,7 +902,12 @@ const SettingsView = (() => {
         // photos, and we were re-decoding them on every scroll. After
         // the first decode, the small thumb data URL stays cached for
         // the session, so re-visiting Settings is instant.
-        const src = `file://${String(ct.path).replace(/\\/g, '/')}`;
+        // Mobile passes data: URIs in `path`; desktop passes filesystem
+        // paths. Only prefix file:// for plain paths.
+        const rawPath = String(ct.path).replace(/\\/g, '/');
+        const src = /^(?:data:|https?:|blob:|file:)/i.test(rawPath)
+          ? rawPath
+          : `file://${rawPath}`;
         const img = document.createElement('img');
         img.decoding = 'async';
         img.alt = String(ct.name || 'Custom theme');

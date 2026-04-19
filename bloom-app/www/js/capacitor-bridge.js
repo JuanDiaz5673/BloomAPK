@@ -545,10 +545,14 @@
     },
 
     // ── Theme ──
+    // Custom backgrounds: file picker → canvas downsize → data URI in
+    // Preferences. Implementation lives in js/mobile/theme-store.js;
+    // bridge just forwards. theme-engine sees the data: URI in `path`
+    // and renders it directly (no `file://` prefix).
     theme: {
-      pickImage: () => _notImpl('Custom background picker'),
-      listCustom: asyncArr,
-      deleteCustom: asyncOk,
+      pickImage: () => window._bloomTheme?.pickImage() ?? null,
+      listCustom: () => window._bloomTheme?.listCustom() ?? [],
+      deleteCustom: (id) => window._bloomTheme?.deleteCustom(id) ?? { success: true },
       // Mobile: preset images live inside the bundled web assets.
       // Renderer does `file://${path}` wrapping; strip that and return the
       // relative asset URL so it resolves against the Capacitor webview origin.
