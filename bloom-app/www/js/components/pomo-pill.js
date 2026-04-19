@@ -23,8 +23,15 @@
 (() => {
   let _el = null;
   let _timeEl = null;
-  let _dotEl = null;
+  let _ringFg = null;
   let _inserted = false;
+
+  // Mini progress ring math — visually echoes the big ring on the
+  // Pomodoro page so the pill feels like a zoomed-out version of
+  // the same control, not a random pink dot.
+  const R = 7;                                // radius of the ring
+  const C = 2 * Math.PI * R;                  // circumference used for stroke-dasharray
+  const RING_SIZE = 18;                        // px — viewBox coords
 
   function _mount() {
     if (_inserted) return;
@@ -35,8 +42,16 @@
     _el.className = 'pomo-pill';
     _el.type = 'button';
     _el.setAttribute('aria-label', 'Pomodoro timer — tap to open');
+    // SVG ring uses transparent stroke-dashoffset to animate progress
+    // as the session ticks down. Track circle (bg) stays fully drawn;
+    // progress circle (fg) rotates -90° so the stroke starts at 12 o'clock
+    // and sweeps clockwise — same as the big ring on Pomodoro page.
     _el.innerHTML = `
-      <span class="pomo-pill-dot" aria-hidden="true"></span>
+      <svg class="pomo-pill-ring" viewBox="0 0 ${RING_SIZE} ${RING_SIZE}" aria-hidden="true">
+        <circle class="pomo-pill-ring-bg" cx="${RING_SIZE/2}" cy="${RING_SIZE/2}" r="${R}" />
+        <circle class="pomo-pill-ring-fg" cx="${RING_SIZE/2}" cy="${RING_SIZE/2}" r="${R}"
+          stroke-dasharray="${C.toFixed(3)}" stroke-dashoffset="0" />
+      </svg>
       <span class="pomo-pill-time" id="pomo-pill-time">--:--</span>
     `;
     _el.addEventListener('click', () => {
@@ -49,8 +64,18 @@
     // layout places it in the middle of the top bar.
     headerLeft.parentNode.insertBefore(_el, headerRight);
     _timeEl = _el.querySelector('#pomo-pill-time');
-    _dotEl = _el.querySelector('.pomo-pill-dot');
+    _ringFg = _el.querySelector('.pomo-pill-ring-fg');
     _inserted = true;
+  }
+
+  function _paintRing(remainingMs, durationMs) {
+    if (!_ringFg) return;
+    // progress: 0 at start, 1 when done. We draw the REMAINING portion
+    // (not elapsed) so the ring visually drains as time runs out —
+    // more intuitive than a filling arc at a glance.
+    const remainingFrac = durationMs > 0 ? Math.max(0, Math.min(1, remainingMs / durationMs)) : 0;
+    const offset = C * (1 - remainingFrac);
+    _ringFg.style.strokeDashoffset = offset.toFixed(3);
   }
 
   function _fmt(ms) {
@@ -72,6 +97,7 @@
     // Paint content.
     const snap = state || service?.getState?.() || {};
     if (_timeEl) _timeEl.textContent = _fmt(snap.remainingMs ?? 0);
+    _paintRing(snap.remainingMs ?? 0, snap.durationMs ?? 1);
     // Mode-color + running-animation classes.
     _el.classList.toggle('is-focus', snap.mode === 'focus');
     _el.classList.toggle('is-break', snap.mode === 'shortBreak' || snap.mode === 'longBreak');
@@ -82,6 +108,7 @@
   function _updateFromTick(tick) {
     if (!_el || !_el.classList.contains('is-visible')) return;
     if (_timeEl) _timeEl.textContent = _fmt(tick?.remainingMs ?? 0);
+    _paintRing(tick?.remainingMs ?? 0, tick?.durationMs ?? 1);
   }
 
   // Mount once DOM is ready (the header markup is in index.html, so

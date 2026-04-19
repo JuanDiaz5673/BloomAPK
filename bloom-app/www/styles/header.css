@@ -133,89 +133,150 @@
 /* ─── Pomodoro mini-pill (persistent header timer) ──────────────────
    Slots between .header-left and .header-right via DOM insertion
    from js/components/pomo-pill.js. Hidden by default (display:none
-   when `.is-visible` is absent) so layout reflows cleanly when the
-   timer goes idle or the user hits home.
+   when `.is-visible` is absent).
+
+   Design: the pill is a miniature echo of the big Pomodoro ring on
+   the Study page — same SVG-ring-+-MM:SS pattern, just 18×18 instead
+   of 240×240. So the pill feels like a zoomed-out version of that
+   control rather than a disconnected pink dot. The ring drains
+   clockwise as the session ticks down (visually mirroring the big
+   ring's behavior).
 
    Color language:
-   - .is-focus   → pink/primary accent (matches the big ring on the
-                   Pomodoro page in focus mode)
-   - .is-break   → warm/amber accent (matches break-mode ring)
-   - .is-running → dot pulses softly
-   - .is-paused  → dot goes static, ring tone dims a hair
-
-   The pill sits visually like a header-action sibling: same height,
-   same backdrop blur, same border radius. Width auto-fits the
-   MM:SS text so a short 09:42 hugs tight. */
+   - .is-focus   → pink/primary accent (matches the big ring in focus)
+   - .is-break   → warm/amber accent  (matches break-mode ring)
+   - .is-running → soft glow + faint inner highlight — pill feels "hot"
+   - .is-paused  → desaturates slightly; ring holds its position
+*/
 .pomo-pill {
   display: none; /* toggled by .is-visible */
-  align-items: center; gap: 7px;
+  align-items: center; gap: 8px;
   height: 32px;
-  padding: 0 11px 0 9px;
-  border-radius: 16px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  padding: 0 12px 0 8px;
+  border-radius: 18px;
+  /* Mode-tinted glass — not just plain --glass-bg. The colored tint
+     comes from the mode class rules below (is-focus / is-break) so
+     the pill reads distinctly from the colorless action buttons next
+     to it, without fighting them visually. */
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(calc(var(--glass-blur) + 4px)) saturate(1.3);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 4px)) saturate(1.3);
   border: 1px solid var(--glass-border);
   color: var(--text-primary);
   font-family: 'Outfit', sans-serif;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.4px;
   cursor: pointer;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
-  transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
-  /* Slight left margin so it doesn't collide with a narrow title. */
+  position: relative;
+  overflow: hidden;
+  transition: background-color 0.25s ease, border-color 0.25s ease,
+              transform 0.2s ease, box-shadow 0.3s ease, color 0.25s ease;
   margin: 0 8px;
+}
+/* Subtle inner-top highlight — the same "glass depth" trick the
+   other app cards use. Makes the pill feel lifted off the header
+   rather than flat. */
+.pomo-pill::before {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 40%);
 }
 .pomo-pill.is-visible { display: inline-flex; }
 .pomo-pill:hover {
-  background: var(--glass-bg-hover);
+  background: rgba(255, 255, 255, 0.07);
   border-color: var(--glass-border-hover);
   transform: translateY(-1px);
 }
 .pomo-pill:active { transform: translateY(0) scale(0.97); }
 
-.pomo-pill-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--accent-pink);
-  box-shadow: 0 0 8px rgba(var(--accent-primary-rgb), 0.6);
-  flex-shrink: 0;
+/* Mode tints — swap the border + outer glow by mode so the pill is
+   instantly recognizable at a glance (focus = pink, break = amber). */
+.pomo-pill.is-focus {
+  border-color: rgba(var(--accent-primary-rgb), 0.35);
+  color: var(--text-primary);
 }
-.pomo-pill.is-focus .pomo-pill-dot {
-  background: var(--accent-pink);
-  box-shadow: 0 0 8px rgba(var(--accent-primary-rgb), 0.6);
+.pomo-pill.is-focus.is-running {
+  box-shadow: 0 0 0 1px rgba(var(--accent-primary-rgb), 0.25),
+              0 4px 16px rgba(var(--accent-primary-rgb), 0.22);
+  background: rgba(var(--accent-primary-rgb), 0.07);
 }
-.pomo-pill.is-break .pomo-pill-dot {
-  /* Amber-ish for break — same palette as the break ring on the
-     Pomodoro page so the two surfaces feel visually linked. */
-  background: var(--accent-warm, #fd9a6c);
-  box-shadow: 0 0 8px rgba(253, 154, 108, 0.6);
+.pomo-pill.is-break {
+  border-color: rgba(253, 154, 108, 0.38);
 }
-.pomo-pill.is-running .pomo-pill-dot {
-  animation: pomoPillPulse 1.8s ease-in-out infinite;
-}
-.pomo-pill.is-paused .pomo-pill-dot {
-  opacity: 0.55;
-  animation: none;
-}
-.pomo-pill.is-paused {
-  color: var(--text-secondary);
-  opacity: 0.82;
+.pomo-pill.is-break.is-running {
+  box-shadow: 0 0 0 1px rgba(253, 154, 108, 0.28),
+              0 4px 16px rgba(253, 154, 108, 0.25);
+  background: rgba(253, 154, 108, 0.08);
 }
 
-/* Subtle pulse — dims + slight grow. Not too aggressive; the pill
-   lives in the user's peripheral vision while they're reading notes. */
-@keyframes pomoPillPulse {
-  0%, 100% { transform: scale(1); opacity: 0.9; }
-  50%      { transform: scale(1.2); opacity: 1; }
+/* Paused: desaturate the whole pill a notch. The ring stays frozen
+   in place (CSS transition handles the smooth stop). */
+.pomo-pill.is-paused {
+  opacity: 0.78;
+  color: var(--text-secondary);
+}
+
+/* ── The mini progress ring ────────────────────────────────────── */
+.pomo-pill-ring {
+  width: 18px; height: 18px;
+  flex-shrink: 0;
+  overflow: visible;
+  /* Rotate -90° so strokeDashoffset sweeps clockwise from 12 o'clock,
+     matching the big ring on the Pomodoro page. */
+  transform: rotate(-90deg);
+}
+.pomo-pill-ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 2;
+}
+.pomo-pill-ring-fg {
+  fill: none;
+  stroke: var(--accent-pink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  /* Smooth update on tick events. 250ms matches the service's tick
+     throttle so the ring always arrives before the next update would
+     overwrite it mid-animation. */
+  transition: stroke-dashoffset 280ms linear,
+              stroke 260ms ease;
+  filter: drop-shadow(0 0 2px rgba(var(--accent-primary-rgb), 0.5));
+}
+.pomo-pill.is-break .pomo-pill-ring-fg {
+  stroke: var(--accent-warm, #fd9a6c);
+  filter: drop-shadow(0 0 2px rgba(253, 154, 108, 0.55));
+}
+/* Gentle breathing on the ring's outer halo while running — more
+   ambient than the earlier "scale 1→1.2" dot pulse, less distracting. */
+.pomo-pill.is-running .pomo-pill-ring-fg {
+  animation: pomoPillHalo 2.4s ease-in-out infinite;
+}
+.pomo-pill.is-paused .pomo-pill-ring-fg {
+  filter: none;
+  opacity: 0.7;
+}
+@keyframes pomoPillHalo {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(var(--accent-primary-rgb), 0.45)); }
+  50%      { filter: drop-shadow(0 0 5px rgba(var(--accent-primary-rgb), 0.8)); }
+}
+.pomo-pill.is-break.is-running .pomo-pill-ring-fg {
+  animation-name: pomoPillHaloBreak;
+}
+@keyframes pomoPillHaloBreak {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(253, 154, 108, 0.45)); }
+  50%      { filter: drop-shadow(0 0 5px rgba(253, 154, 108, 0.8)); }
 }
 
 .pomo-pill-time {
   line-height: 1;
   white-space: nowrap;
+  position: relative; /* so it sits above the ::before highlight */
 }
 
 /* Language toggle removed — keeping styles below for any future re-add. */
