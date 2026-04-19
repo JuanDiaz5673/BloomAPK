@@ -1800,6 +1800,17 @@ html {
   .header-left h1 { font-size: 18px !important; }
   .header-actions { gap: 4px !important; }
   .header-actions .icon-btn { width: 36px !important; height: 36px !important; }
+  /* Pomo pill: tighter on the smallest phones — the 320-360 row has
+     the avatar + 2 icons already eating ~148px; the pill needs to
+     sit inside the remaining ~170px alongside the title without
+     forcing either to clip. */
+  .pomo-pill {
+    height: 28px !important;
+    padding: 0 9px 0 8px !important;
+    font-size: 11.5px !important;
+    margin: 0 4px !important;
+  }
+  .pomo-pill-dot { width: 7px !important; height: 7px !important; }
 
   /* Bottom nav: tighter labels, slightly smaller icons — keeps the 4
      tabs inside a 320-360px row without clipping. */

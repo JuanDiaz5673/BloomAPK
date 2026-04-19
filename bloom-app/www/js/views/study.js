@@ -9,19 +9,17 @@ const StudyView = (() => {
   let _stats = null;
   let _destroyed = false;
 
-  // Timer
+  // Timer — state lives in js/mobile/pomodoro-service.js (singleton,
+  // survives view destroy). This view just subscribes to events and
+  // renders the big ring. Mode constants duplicated here so DOM code
+  // comparing against _timerMode keeps working without reaching into
+  // the service every time.
   const MODE_FOCUS = 'focus';
   const MODE_SHORT_BREAK = 'shortBreak';
   const MODE_LONG_BREAK = 'longBreak';
-  let _timerMode = MODE_FOCUS;           // which kind of interval we're in
-  let _timerStatus = 'idle';              // 'idle' | 'running' | 'paused'
-  let _timerEndTs = 0;                    // ms epoch — when the current interval ends (null when paused)
-  let _timerPauseRemaining = 0;           // ms remaining at the moment of pause
-  let _timerDurationMs = 0;               // total ms for the current interval (for ring math)
-  let _timerSessionStart = 0;             // when the CURRENT focus interval started (for session log)
-  let _tickerId = null;
-  let _cycleInSequence = 0;               // 0..longBreakEvery-1 — resets after long break
-  let _audioCtx = null;
+  let _unsubPomoState = null;
+  let _unsubPomoTick = null;
+  let _unsubPomoComplete = null;
 
   // Study mode (flashcard review)
   let _study = null; // { deckId, deckName, queue, idx, flipped, startedAt, reviewed }
@@ -255,13 +253,15 @@ const StudyView = (() => {
   // ── Init / destroy ─────────────────────────────────────────────────
   async function init() {
     _destroyed = false;
-    // Fresh entry — reset timer state. Module-scope vars persist across
-    // SPA view changes (StudyView is a singleton), so without this a
-    // dangling 'paused' status from a previous session would re-render.
-    _timerStatus = 'idle';
-    _timerSessionStart = 0;
-    _cycleInSequence = 0;
     _subView = SV_HUB;
+    // Check if we were deep-linked to a specific sub-view (e.g. the
+    // header pomo-pill sets 'pomodoro' before navigating). One-shot —
+    // clear after read so a back-nav doesn't re-enter the same subview.
+    try {
+      const pending = sessionStorage.getItem('study.pendingSubView');
+      if (pending === SV_POMODORO || pending === SV_FLASHCARDS) _subView = pending;
+      sessionStorage.removeItem('study.pendingSubView');
+    } catch {}
 
     // Fire off all three fetches in parallel — they're independent and
     // none depend on the others' results.
@@ -281,7 +281,33 @@ const StudyView = (() => {
       return;
     }
 
-    _resetTimerToMode(MODE_FOCUS);
+    // Subscribe to the persistent Pomodoro service. The service owns
+    // all timer state; the view just listens and paints. Ticks fire
+    // ~4x/sec while running (to keep the ring + MM:SS label in sync).
+    _unsubPomoState = ((fn) => {
+      const h = () => fn();
+      window.addEventListener('bloom:pomodoro-state', h);
+      return () => window.removeEventListener('bloom:pomodoro-state', h);
+    })(() => _renderTimer());
+    _unsubPomoTick = ((fn) => {
+      const h = (e) => fn(e?.detail);
+      window.addEventListener('bloom:pomodoro-tick', h);
+      return () => window.removeEventListener('bloom:pomodoro-tick', h);
+    })(() => _renderTimer());
+    // On interval complete, the service handles the chime + session
+    // log + OS notification itself. We just toast + refresh the stats
+    // card if the user is actually here to see it.
+    _unsubPomoComplete = ((fn) => {
+      const h = (e) => fn(e?.detail);
+      window.addEventListener('bloom:pomodoro-complete', h);
+      return () => window.removeEventListener('bloom:pomodoro-complete', h);
+    })((detail) => {
+      const msg = detail?.completedMode === MODE_FOCUS
+        ? (detail.nextMode === MODE_LONG_BREAK ? 'Nice! Long break earned ☕' : 'Focus done — quick break ☕')
+        : 'Break\'s up — ready to focus';
+      if (window.Toast) Toast.show(msg, 'success');
+      _refreshStats().catch(() => {});
+    });
 
     // Live updates from AI tools. These listeners survive sub-view
     // changes — they only get torn down on full view destroy().
@@ -326,16 +352,13 @@ const StudyView = (() => {
     // cadence) to see their first decks.
     try { window.electronAPI.study.syncNow?.(); } catch {}
     _unsubPomodoroStart = window.electronAPI.study.onPomodoroStart((payload) => {
-      if (_timerStatus === 'running') return; // don't interrupt an active session
-      if (payload?.durationMin) {
-        _timerDurationMs = Math.max(1, payload.durationMin) * 60 * 1000;
-        _timerPauseRemaining = _timerDurationMs;
-      }
-      _timerMode = MODE_FOCUS;
-      // Surface the timer page so the user can see what's happening,
-      // then start ticking.
+      const svc = _svc();
+      if (!svc || svc.isActive()) return; // don't interrupt active
+      // Surface the Pomodoro subview and start through the service so
+      // the mini-pill picks it up too (it listens on the same events).
       _navigate(SV_POMODORO);
-      _onStartPause();
+      svc.setMode(MODE_FOCUS);
+      svc.start(MODE_FOCUS);
       if (window.Toast) Toast.show('Focus session started 🌸', 'success');
     });
 
@@ -345,15 +368,14 @@ const StudyView = (() => {
       ? Router.consumeDeepLink('pomodoro') : null;
     if (pomoLink) {
       _navigate(SV_POMODORO);
-      if (pomoLink.durationMin) {
-        _timerDurationMs = Math.max(1, pomoLink.durationMin) * 60 * 1000;
-        _timerPauseRemaining = _timerDurationMs;
+      const svc = _svc();
+      if (svc && !svc.isActive()) {
+        svc.setMode(MODE_FOCUS);
+        setTimeout(() => svc.start(MODE_FOCUS), 50);
+        if (window.Toast) Toast.show('Focus session started 🌸', 'success');
       }
-      _timerMode = MODE_FOCUS;
-      setTimeout(() => { if (!_destroyed && _timerStatus !== 'running') _onStartPause(); }, 50);
-      if (window.Toast) Toast.show('Focus session started 🌸', 'success');
     } else {
-      _navigate(SV_HUB);
+      _navigate(_subView);
     }
   }
 
@@ -427,7 +449,10 @@ const StudyView = (() => {
 
   function destroy() {
     _destroyed = true;
-    _stopTicker();
+    // Intentionally DO NOT stop the Pomodoro service here — the whole
+    // point of extracting it to a singleton is that the timer keeps
+    // running when the user navigates to Notes / Calendar / etc. Just
+    // unsubscribe from the view-render events; the ticker goes on.
     _closeStudyMode(false);
     if (_escListener) {
       document.removeEventListener('keydown', _escListener);
@@ -437,6 +462,9 @@ const StudyView = (() => {
     if (_unsubStatsChanged) { try { _unsubStatsChanged(); } catch {} _unsubStatsChanged = null; }
     if (_unsubPomodoroStart) { try { _unsubPomodoroStart(); } catch {} _unsubPomodoroStart = null; }
     if (_unsubSyncStatus) { try { _unsubSyncStatus(); } catch {} _unsubSyncStatus = null; }
+    if (_unsubPomoState) { try { _unsubPomoState(); } catch {} _unsubPomoState = null; }
+    if (_unsubPomoTick) { try { _unsubPomoTick(); } catch {} _unsubPomoTick = null; }
+    if (_unsubPomoComplete) { try { _unsubPomoComplete(); } catch {} _unsubPomoComplete = null; }
   }
 
   // ── Timer ──────────────────────────────────────────────────────────
@@ -446,141 +474,19 @@ const StudyView = (() => {
     return 'Long break';
   }
 
-  function _modeDurationMs(mode) {
-    const minutes = mode === MODE_FOCUS ? _prefs.focus
-      : mode === MODE_SHORT_BREAK ? _prefs.shortBreak
-      : _prefs.longBreak;
-    return Math.max(1, minutes) * 60 * 1000;
-  }
-
-  function _resetTimerToMode(mode) {
-    _timerMode = mode;
-    _timerStatus = 'idle';
-    _timerDurationMs = _modeDurationMs(mode);
-    _timerPauseRemaining = _timerDurationMs;
-    _timerEndTs = 0;
-  }
+  // Thin wrappers around the service — keep the existing DOM event
+  // handlers (_onStartPause, _onReset) pointing at familiar names
+  // while the actual state machine lives in pomodoro-service.js.
+  function _svc() { return window._bloomPomodoro; }
 
   function _onStartPause() {
-    if (_timerStatus === 'running') {
-      // Pause: freeze remaining time
-      _timerPauseRemaining = Math.max(0, _timerEndTs - Date.now());
-      _timerStatus = 'paused';
-      _stopTicker();
-      _renderTimer();
-    } else {
-      // Start or resume
-      _timerStatus = 'running';
-      _timerEndTs = Date.now() + _timerPauseRemaining;
-      if (_timerMode === MODE_FOCUS && !_timerSessionStart) {
-        _timerSessionStart = Date.now();
-      }
-      _startTicker();
-      _renderTimer();
-    }
+    const s = _svc(); if (!s) return;
+    const snap = s.getState();
+    if (snap.status === 'running') s.pause();
+    else s.start(snap.mode);
   }
-
   function _onReset() {
-    _stopTicker();
-    _timerSessionStart = 0;
-    _resetTimerToMode(_timerMode);
-    _renderTimer();
-  }
-
-  // rAF-driven ticker with a 250ms throttle gate. Previously a raw
-  // setInterval(250) kept running even when the window was hidden or
-  // the Study view was navigated away — 4 DOM reads/writes per second
-  // on a backdrop-filtered card, forever. rAF pauses automatically
-  // when the tab is hidden; `visibilityState` check covers the
-  // minimized-window case too. Internal throttle keeps the SVG ring
-  // update to ~4/s (same feel as before) rather than 60/s.
-  let _tickerRafId = null;
-  let _lastTickMs = 0;
-  function _startTicker() {
-    _stopTicker();
-    _lastTickMs = 0;
-    const loop = () => {
-      if (_destroyed || _tickerRafId == null) return;
-      // Pause the loop while hidden — rAF already throttles aggressively
-      // in background tabs, but this also avoids the wasted function
-      // calls + remaining-time reads entirely.
-      if (document.visibilityState === 'hidden') {
-        _tickerRafId = requestAnimationFrame(loop);
-        return;
-      }
-      const now = performance.now();
-      if (now - _lastTickMs >= 250) {
-        _lastTickMs = now;
-        _tick();
-      }
-      _tickerRafId = requestAnimationFrame(loop);
-    };
-    _tickerRafId = requestAnimationFrame(loop);
-  }
-
-  function _stopTicker() {
-    if (_tickerRafId != null) {
-      cancelAnimationFrame(_tickerRafId);
-      _tickerRafId = null;
-    }
-    if (_tickerId) {
-      clearInterval(_tickerId);
-      _tickerId = null;
-    }
-  }
-
-  function _tick() {
-    if (_destroyed) { _stopTicker(); return; }
-    if (_timerStatus !== 'running') return;
-    const remaining = _timerEndTs - Date.now();
-    if (remaining <= 0) {
-      _onIntervalComplete();
-      return;
-    }
-    _renderTimer();
-  }
-
-  async function _onIntervalComplete() {
-    _stopTicker();
-    const completedMode = _timerMode;
-
-    // Log the pomodoro session if this was a focus interval
-    if (completedMode === MODE_FOCUS && _timerSessionStart) {
-      try {
-        await window.electronAPI.study.logSession({
-          type: 'pomodoro',
-          startedAt: _timerSessionStart,
-          durationMs: _timerDurationMs,
-        });
-      } catch (err) {
-        console.warn('Failed to log pomodoro session:', err);
-      }
-      _timerSessionStart = 0;
-      _cycleInSequence++;
-    }
-
-    // Transition to next mode
-    let nextMode;
-    let toastMsg;
-    if (completedMode === MODE_FOCUS) {
-      nextMode = (_cycleInSequence % (_prefs.longBreakEvery || 4) === 0)
-        ? MODE_LONG_BREAK : MODE_SHORT_BREAK;
-      toastMsg = nextMode === MODE_LONG_BREAK
-        ? 'Nice! Long break earned ☕'
-        : 'Focus done — quick break ☕';
-    } else {
-      nextMode = MODE_FOCUS;
-      toastMsg = 'Break\'s up — ready to focus';
-    }
-
-    _chime();
-    _fireNotification(completedMode === MODE_FOCUS ? 'Focus session complete' : 'Break\'s over',
-      nextMode === MODE_FOCUS ? 'Time to focus — let\'s go!' : toastMsg);
-    if (window.Toast) Toast.show(toastMsg, 'success');
-
-    _resetTimerToMode(nextMode);
-    _renderTimer();
-    _refreshStats();
+    _svc()?.reset();
   }
 
   function _renderTimer() {
@@ -592,16 +498,20 @@ const StudyView = (() => {
     const ringFg = document.querySelector('.study-pomo-ring-fg');
     if (!timeEl || !labelEl) return;
 
-    // Compute remaining ms
-    let remaining;
-    if (_timerStatus === 'running') remaining = Math.max(0, _timerEndTs - Date.now());
-    else remaining = _timerPauseRemaining;
+    // Read everything from the service — it's the source of truth.
+    // If the view mounts after the service has already been ticking
+    // for 5 minutes, this paints the correct remaining time on first
+    // render without waiting for the next tick event.
+    const snap = _svc()?.getState() || {
+      mode: MODE_FOCUS, status: 'idle', remainingMs: 0, durationMs: 1, cycleInSequence: 0,
+    };
+    const remaining = snap.remainingMs;
 
     timeEl.textContent = _fmtTime(remaining);
-    labelEl.textContent = _modeLabel(_timerMode);
+    labelEl.textContent = _modeLabel(snap.mode);
 
     // Ring progress 0→1 (fills clockwise as time elapses)
-    const progress = 1 - (remaining / _timerDurationMs);
+    const progress = 1 - (remaining / Math.max(1, snap.durationMs));
     if (ringFg) {
       const dash = RING_CIRCUMFERENCE * (1 - progress);
       ringFg.style.strokeDashoffset = dash.toFixed(2);
@@ -610,18 +520,18 @@ const StudyView = (() => {
     // Mode-specific ring color — swap stroke when on a break
     const card = document.querySelector('.study-pomodoro');
     if (card) {
-      card.classList.toggle('is-break', _timerMode !== MODE_FOCUS);
-      card.classList.toggle('is-running', _timerStatus === 'running');
+      card.classList.toggle('is-break', snap.mode !== MODE_FOCUS);
+      card.classList.toggle('is-running', snap.status === 'running');
     }
 
     // Start/Pause button
     if (startBtn && startLabel) {
-      if (_timerStatus === 'running') {
+      if (snap.status === 'running') {
         startLabel.textContent = 'Pause';
         const svg = startBtn.querySelector('svg');
         if (svg) svg.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
       } else {
-        startLabel.textContent = _timerStatus === 'paused' ? 'Resume' : 'Start';
+        startLabel.textContent = snap.status === 'paused' ? 'Resume' : 'Start';
         const svg = startBtn.querySelector('svg');
         if (svg) svg.innerHTML = '<polygon points="6 4 20 12 6 20 6 4"/>';
       }
@@ -629,10 +539,10 @@ const StudyView = (() => {
 
     if (meta) {
       const n = _prefs?.longBreakEvery || 4;
-      const within = (_cycleInSequence % n) + 1;
-      meta.textContent = _timerStatus === 'idle'
+      const within = (snap.cycleInSequence % n) + 1;
+      meta.textContent = snap.status === 'idle'
         ? `Cycle ${within} of ${n} · ready when you are`
-        : `Cycle ${within} of ${n} · ${_timerStatus === 'paused' ? 'paused' : 'running'}`;
+        : `Cycle ${within} of ${n} · ${snap.status === 'paused' ? 'paused' : 'running'}`;
     }
   }
 
@@ -643,46 +553,8 @@ const StudyView = (() => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
-  // ── Chime (Web Audio — no asset file needed) ───────────────────────
-  function _chime() {
-    if (!_prefs?.soundEnabled) return;
-    try {
-      if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const ctx = _audioCtx;
-      const now = ctx.currentTime;
-      // Two soft sine tones — a pleasant "ding" rather than a beep.
-      const notes = [880, 1318.5]; // A5, E6
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        const startAt = now + i * 0.09;
-        const dur = 0.55;
-        gain.gain.setValueAtTime(0, startAt);
-        gain.gain.linearRampToValueAtTime(0.18, startAt + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + dur);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(startAt);
-        osc.stop(startAt + dur);
-      });
-    } catch (err) {
-      // AudioContext can fail on some headless environments; silently ignore.
-    }
-  }
-
-  function _fireNotification(title, body) {
-    try {
-      if (typeof Notification === 'undefined') return;
-      if (Notification.permission === 'granted') {
-        new Notification(title, { body, silent: true }); // silent — we play our own chime
-      } else if (Notification.permission !== 'denied') {
-        Notification.requestPermission().then(p => {
-          if (p === 'granted') new Notification(title, { body, silent: true });
-        });
-      }
-    } catch { /* no-op */ }
-  }
+  // (Chime + OS Notification now owned by pomodoro-service.js so they
+  // fire regardless of which view is mounted when an interval ends.)
 
   // ── Deck list ──────────────────────────────────────────────────────
   function _renderDeckList() {
@@ -1198,8 +1070,10 @@ const StudyView = (() => {
         };
         try {
           _prefs = await window.electronAPI.study.setPrefs(patch);
-          // Reset timer to new duration if idle (don't disrupt a running session)
-          if (_timerStatus === 'idle') _resetTimerToMode(_timerMode);
+          // Refresh the service's cached prefs so the timer picks up
+          // the new focus/break durations immediately. If idle,
+          // service's _loadPrefs re-syncs duration to the new value.
+          try { await _svc()?._reloadPrefs(); } catch {}
           _renderTimer();
           _renderStats();
           // If we're on the hub the tile meta strings reference _prefs

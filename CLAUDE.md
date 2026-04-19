@@ -92,6 +92,34 @@ Verify changes across sizes with `adb shell wm size <W>x<H>` + `wm density <dpi>
 - **Bottom nav** (`www/js/components/bottom-nav.js`) — 4 tabs (Home / Study / Calendar / Notes) + centered raised Bloom FAB. Self-gates above 768px.
 - **Bloom bottom-sheet** (`www/js/components/bloom-sheet.js`) — replaces desktop sidebar ambient panel. Drag-to-expand (55vh default → 92vh). In-memory `_history` keyed to `window._activeConversationId` — rebinds on convo change. Error path pops the user turn to keep Claude's strict alternation.
 - **Setup wizard** (`www/js/components/setup-wizard.js`) — Google → AI key → theme. Skips entirely if `google.getStatus()` is already authenticated (marks `hasCompletedSetup=true` on the spot). Theme `data-preset` must be the `PRESETS` **key** (`flowers`), not the filename.
+- **Pomo-pill** (`www/js/components/pomo-pill.js`) — see "New features (mobile-only)" below.
+
+## New features (mobile-only, not in desktop Bloom)
+
+These are features added to BloomAPK that have no equivalent in `C:\Projects\AllDash`. When syncing renderer code from desktop, DO NOT overwrite these files.
+
+### Persistent Pomodoro timer + header pill
+
+**Why it exists**: On mobile the user often starts a focus session and then navigates to Notes / Flashcards / Calendar to actually do the work. On desktop the timer lives in a side panel that's always visible; on a phone there's no room for that. The pill + service combo lets the user run a Pomodoro session from anywhere without losing the timer when they swap views.
+
+**Files**:
+- **`www/js/mobile/pomodoro-service.js`** — singleton timer state + state-machine. Lives on `window._bloomPomodoro`. Survives view destroy; RAF ticker only runs while status is `'running'`. Emits three CustomEvents on `window`:
+  - `bloom:pomodoro-state` — full snapshot `{mode, status, remainingMs, durationMs, cycleInSequence, prefs}` on start/pause/reset/mode-transition.
+  - `bloom:pomodoro-tick` — `{remainingMs, durationMs, mode}` ~4x/sec while running.
+  - `bloom:pomodoro-complete` — `{completedMode, nextMode}` when an interval ends.
+  - Service also handles the chime + OS Notification + `logSession` itself so those fire regardless of which view is mounted.
+  - API: `start(mode?)`, `pause()`, `reset()`, `setMode(mode)` (idle only), `getState()`, `isActive()`.
+  - Prefs hydrate from `study.getPrefs()` at module load + on `bloom:stats-changed` event (so Drive-synced daily-goal changes propagate).
+
+- **`www/js/components/pomo-pill.js`** — the header mini-timer pill. DOM-injects a `<button class="pomo-pill">` between `.header-left` and `.header-right`. Shows MM:SS + a mode-colored pulsing dot (pink for focus, warm for break). Hidden when timer is idle OR when on home view (per UX rule). Tap → sets `sessionStorage['study.pendingSubView'] = 'pomodoro'` and navigates to Study; Study view picks this up on init and opens the Pomodoro subview directly.
+
+- **CSS**: `www/styles/header.css` has the desktop/tablet pill styles; `www/styles/mobile.css` (inside the `:360` block) tightens sizing for Galaxy-mini phones.
+
+**Study view is now a thin consumer**:
+- All `_timerMode / _timerStatus / _timerEndTs / _cycleInSequence` etc. state is GONE from `www/js/views/study.js`. The view reads everything from `_svc().getState()` and subscribes to `bloom:pomodoro-state` / `bloom:pomodoro-tick` / `bloom:pomodoro-complete` for re-render triggers.
+- `destroy()` intentionally does **not** stop the ticker — that's the whole point of the service.
+
+**Gotcha to remember**: if you ever need to change the tick cadence or the mode-transition rules, do it in `pomodoro-service.js`. Don't re-introduce local timer state in views.
 
 ## Gotchas we hit and the fixes
 
