@@ -156,6 +156,7 @@
   // Kick off store load before any views render. Views await
   // store.get() inline, so this promise is surfaced on `window._storeReady`
   // for app.js to await too.
+  let _storeHydrated = false;
   window._storeReady = _loadStoreFromDisk().then(() => {
     // Once the in-memory store is hydrated, pull conversations back
     // into the _conversations Map so listConversations / getConversation
@@ -169,6 +170,7 @@
         }
       }
     } catch {}
+    _storeHydrated = true;
   });
 
   // ── Toast helper for "not yet implemented" ─────────────────────────
@@ -193,6 +195,15 @@
       // silently "work" on get/delete when set would have rejected it.
       get: async (key) => {
         if (!_keyAllowRe.test(String(key || ''))) return null;
+        // Auto-await disk hydration if it hasn't completed yet. Without
+        // this, callers that fire on app boot (app.js theme load,
+        // header avatar restore, etc) saw an empty Map and had to be
+        // individually patched to await _storeReady. Centralizing the
+        // wait here means new callers don't need to know about the
+        // race. After hydration this is a single bool check, no awaits.
+        if (!_storeHydrated) {
+          try { await window._storeReady; } catch {}
+        }
         return _memory.get(key) ?? null;
       },
       set: async (key, value) => {

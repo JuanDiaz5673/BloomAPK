@@ -1771,6 +1771,29 @@ html {
     height: 28px !important;
   }
 
+  /* Study deck rows — tighter still on Galaxy mini sized phones.
+     Three action buttons + name + counts on a 320-360px row needs
+     every pixel: smaller buttons (32px), tighter gap, slightly
+     smaller title font. The 2-row stack inherited from ≤768 keeps
+     the title legible across all phone widths. */
+  .study-deck-row {
+    padding: 12px 10px !important;
+    gap: 2px 8px !important;
+  }
+  .study-deck-row .study-deck-name {
+    font-size: 14px !important;
+  }
+  .study-deck-row .study-deck-counts {
+    font-size: 10.5px !important;
+  }
+  .study-deck-row .study-icon-btn {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .study-deck-row .study-deck-actions {
+    gap: 2px;
+  }
+
   /* Bottom-nav FAB breathing ring — the keyframes scale to 1.18x at
      the peak, which on ≤360 would overshoot the tab row and collide
      with neighboring labels. Pull the ring inset in. */
