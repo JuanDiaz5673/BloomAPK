@@ -1167,21 +1167,35 @@ html {
   .notes-view .notes-editor-panel {
     width: 100% !important;
     max-width: 100% !important;
-    flex: 1 1 auto !important;
+    /* flex: 0 1 auto so cards size to their CONTENT, not the
+       available space. With only 2 notes the card now wraps tight
+       around them instead of stretching nearly to the bottom nav
+       and leaving a giant empty region visible INSIDE the glass. */
+    flex: 0 1 auto !important;
     min-height: 0 !important;
     max-height: none !important;
   }
-  /* Cap the list card's height so it doesn't butt up against the
-     bottom nav — leaves a visible bit of wallpaper below the card
-     that matches the spacing pattern of other tabs. The inner
-     .notes-list scrolls inside this height. */
+  /* Cap the list card's height so very long lists don't run into
+     the bottom nav. The inner .notes-list scrolls inside this height.
+     The ~80px tail below the card matches the breathing room
+     home/study have between their last card and the bottom nav. */
   .notes-view .notes-list-panel {
-    max-height: calc(100vh - 64px - var(--mobile-safe-bottom) - 24px) !important;
+    max-height: calc(100vh - 64px - var(--mobile-safe-bottom) - 80px) !important;
     overflow: hidden;
+    /* A trailing margin gives the wallpaper some visible room
+       underneath the card even when the list is short — matches the
+       vibe of the dashboard where cards don't butt up against nav. */
+    margin-bottom: 32px;
   }
   .notes-view .notes-list-panel .notes-list {
     overflow-y: auto;
-    padding-bottom: 16px;
+    padding-bottom: 20px;
+  }
+  /* Editor mirrors the same breathing room when open (active editing
+     state) so the toolbar doesn't collide with the bottom nav. */
+  .notes-view .notes-editor-panel {
+    max-height: calc(100vh - 64px - var(--mobile-safe-bottom) - 24px) !important;
+    margin-bottom: 16px;
   }
   /* Default: list visible, editor hidden */
   .notes-view .notes-editor-panel { display: none !important; }
