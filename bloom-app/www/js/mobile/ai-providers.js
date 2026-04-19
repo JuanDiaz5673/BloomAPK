@@ -53,12 +53,54 @@
   // instead of replying "I can't do that" like it did before tools
   // existed on mobile. The Claude/Gemini/OpenRouter providers all accept
   // this same string verbatim.
-  const SYSTEM_PROMPT =
-    'You are Bloom, a warm, helpful personal productivity assistant running on the user\'s Android phone. ' +
-    'You have TOOLS for creating / updating / deleting calendar events, notes, and flashcard decks, ' +
-    'and for starting Pomodoro focus sessions. When the user asks you to do any of these things, ' +
-    "USE THE TOOLS — don't just describe what the user could do. Confirm what you did in a short friendly reply. " +
-    'Keep answers concise. If a tool call fails, say so honestly and suggest what to try.';
+  //
+  // Date/time awareness: the model has NO clock. Without an explicit
+  // current date in the prompt, it interprets "today / tonight /
+  // tomorrow / this week" against its training cutoff (which is
+  // months-to-years stale). Building the prompt fresh per-request also
+  // lets us include the user's local timezone offset, so create_calendar_event
+  // can emit a correct ISO datetime without us guessing.
+  function _getSystemPrompt() {
+    const now = new Date();
+    // ISO local date (YYYY-MM-DD) — easier for the model to use as a
+    // building block for ISO datetimes than a free-form English date.
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const isoDate = `${y}-${m}-${d}`;
+    const fullDate = now.toLocaleDateString(undefined, {
+      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+    });
+    const timeStr = now.toLocaleTimeString(undefined, {
+      hour: 'numeric', minute: '2-digit'
+    });
+    // Local timezone offset (minutes east of UTC) → ±HH:MM
+    const tzMin = -now.getTimezoneOffset();
+    const sign = tzMin >= 0 ? '+' : '-';
+    const absMin = Math.abs(tzMin);
+    const offsetStr = `${sign}${String(Math.floor(absMin / 60)).padStart(2, '0')}:${String(absMin % 60).padStart(2, '0')}`;
+    let tzName = '';
+    try { tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
+
+    return [
+      'You are Bloom, a warm, helpful personal productivity assistant running on the user\'s Android phone.',
+      '',
+      `CURRENT CONTEXT (use this for any time-relative request — "today", "tonight", "tomorrow", "this week", "next Friday", etc):`,
+      `- Right now it is ${fullDate}, ${timeStr}.`,
+      `- ISO date: ${isoDate}`,
+      `- User timezone: ${tzName || 'unknown'} (UTC${offsetStr})`,
+      `- When you build start_datetime / end_datetime for create_calendar_event, append "${offsetStr}" so the ISO timestamp is correct, e.g. "${isoDate}T13:00:00${offsetStr}".`,
+      `- "tonight" means after 17:00 today. "tomorrow morning" defaults to 9:00 tomorrow. "in an hour" = current time + 1 hour. Never ask the user to clarify the date when "today/tonight/tomorrow" is unambiguous — just compute it from the date above.`,
+      `- If the user gives a time but no end time, default the event to 1 hour long.`,
+      '',
+      'TOOLS: You have TOOLS for creating / updating / deleting calendar events, notes, and flashcard decks, and for starting Pomodoro focus sessions. When the user asks you to do any of these things, USE THE TOOLS — don\'t just describe what the user could do. Confirm what you did in a short friendly reply.',
+      '',
+      'Keep answers concise. If a tool call fails, say so honestly and suggest what to try.'
+    ].join('\n');
+  }
+  // Back-compat for any external reads — exposes the current prompt.
+  // Most callers should use _getSystemPrompt() so the date is fresh.
+  const SYSTEM_PROMPT = _getSystemPrompt();
 
   // ── Store helpers ───────────────────────────────────────────────
   async function _get(key) {
@@ -151,7 +193,7 @@
 
   function _asOpenAIMessages(messages) {
     return [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: _getSystemPrompt() },
       ...messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .map(m => ({ role: m.role, content: _extractText(m.content) })),
@@ -238,6 +280,10 @@
 
     // Clone the passed-in array — we mutate it across tool loops.
     let workingMessages = _asClaudeMessages(messages);
+    // Build the system prompt ONCE per streamChat call (not per iteration)
+    // so the date doesn't drift mid-tool-loop, and the model sees the
+    // same baseline context across follow-up turns.
+    const systemPrompt = _getSystemPrompt();
     const MAX_ITER = 8;
 
     for (let iter = 0; iter < MAX_ITER; iter++) {
@@ -255,7 +301,7 @@
         body: JSON.stringify({
           model: PROVIDERS.claude.model,
           max_tokens: 4096,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt,
           messages: workingMessages,
           tools: tools.length ? tools : undefined,
           stream: true,
@@ -422,6 +468,7 @@
     let modelToUse = PROVIDERS.gemini.model;
     let modelFallbackUsed = false;
     let contents = _asGeminiContents(messages);
+    const systemPrompt = _getSystemPrompt();
     const MAX_ITER = 8;
 
     for (let iter = 0; iter < MAX_ITER; iter++) {
@@ -429,7 +476,7 @@
 
       const body = {
         contents,
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        systemInstruction: { parts: [{ text: systemPrompt }] },
       };
       if (tools.length) body.tools = tools;
 
