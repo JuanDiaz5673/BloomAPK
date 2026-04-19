@@ -379,15 +379,48 @@
    *     finalizing requires watching for role+parts rather than an explicit
    *     stop_reason
    */
+  /**
+   * Translate raw Gemini error response bodies into actionable user-facing
+   * messages. The default error JSON has so much noise that the user just
+   * sees "Sorry, Gemini 401:" + 400 chars of nested objects in the chat
+   * sheet. Pull the few signals that actually matter and produce a short,
+   * actionable string.
+   */
+  function _humanizeGeminiError(status, txt) {
+    let payload = null;
+    try { payload = JSON.parse(txt); } catch { /* not JSON */ }
+    const message = payload?.error?.message || '';
+    const reason = payload?.error?.details?.find(d => d['@type']?.includes('ErrorInfo'))?.reason || '';
+
+    if (status === 401 || /invalid authentication credentials/i.test(message) || /OAuth 2 access token/i.test(message)) {
+      return 'Gemini rejected this API key.\n\nMost common cause: the key was created in a Google Cloud project that doesn\'t have the Generative Language API enabled. Easiest fix:\n\n1. Open https://aistudio.google.com/apikey\n2. Click "Create API key" (in a new project if asked)\n3. Paste the new key into Settings → Gemini\n\nThe Cloud Console key you might be using for Calendar/Drive won\'t work for Gemini unless you also enable the Generative Language API in that project.';
+    }
+    if (status === 403 && /SERVICE_DISABLED|API has not been used|generativelanguage\.googleapis\.com/i.test(message + reason)) {
+      return 'Gemini API is disabled for this key\'s Cloud project.\n\nEither enable "Generative Language API" in your Cloud Console for this project, or get a fresh key from https://aistudio.google.com/apikey (recommended — it works out of the box).';
+    }
+    if (status === 429 || /quota|rate/i.test(message + reason)) {
+      return 'Gemini rate-limit hit. Wait a minute and try again, or switch to Claude / OpenRouter in Settings.';
+    }
+    if (status === 400 && /API key not valid|API_KEY_INVALID/i.test(message + reason)) {
+      return 'Gemini says this API key is not valid. Get a fresh one from https://aistudio.google.com/apikey and paste it into Settings → Gemini.';
+    }
+    // Fallback — short, no JSON dump.
+    return `Gemini ${status}: ${message ? message.slice(0, 240) : 'request failed'}`;
+  }
+
   async function streamGemini({ messages, conversationId, signal, emit }) {
     const key = await getKey('gemini');
     if (!key) throw new Error('Gemini API key not configured. Add one in Settings.');
     const toolsRegistry = window._bloomAITools;
     const tools = toolsRegistry ? toolsRegistry.getAllToolsForGemini() : [];
 
-    const url =
-      `https://generativelanguage.googleapis.com/v1beta/models/${PROVIDERS.gemini.model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
-
+    // Fallback chain — if 2.5-flash is unavailable on the user's key
+    // (rolled out unevenly), 1.5-flash is the long-tested alternative.
+    // We try 2.5 first (smarter tool use); on a flat-out auth/perm
+    // failure that's not key-invalid, the second model has no chance
+    // either, so we don't loop on auth errors — only on model-not-found.
+    let modelToUse = PROVIDERS.gemini.model;
+    let modelFallbackUsed = false;
     let contents = _asGeminiContents(messages);
     const MAX_ITER = 8;
 
@@ -400,6 +433,8 @@
       };
       if (tools.length) body.tools = tools;
 
+      const url =
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
       const res = await fetch(url, {
         method: 'POST',
         signal,
@@ -409,7 +444,16 @@
 
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
-        throw new Error(`Gemini ${res.status}: ${txt.slice(0, 400) || res.statusText}`);
+        // Model-not-found / unsupported → drop to a known-good model and
+        // retry the same iteration once. Auth errors don't get a retry —
+        // a different model won't fix the wrong project / wrong key.
+        if (!modelFallbackUsed && (res.status === 404 || /not found|not supported|model/i.test(txt) && res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 403)) {
+          modelFallbackUsed = true;
+          modelToUse = 'gemini-1.5-flash';
+          iter--; // don't count this attempt
+          continue;
+        }
+        throw new Error(_humanizeGeminiError(res.status, txt));
       }
 
       const functionCalls = [];

@@ -278,6 +278,11 @@ const BloomSheet = (() => {
     const bubble = document.createElement('div');
     bubble.className = `bloom-sheet-msg ${role}`;
     bubble.setAttribute('data-role', role);
+    // Preserve newlines from multi-line errors / hints. Without this,
+    // a friendly multi-paragraph error message collapses into one wall
+    // of text. Setting white-space inline keeps the rule scoped to the
+    // bubble so we don't fight the existing CSS for normal replies.
+    bubble.style.whiteSpace = 'pre-wrap';
     bubble.textContent = text || '';
     _messagesEl.appendChild(bubble);
     _scrollToBottom();
