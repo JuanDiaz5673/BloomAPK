@@ -145,7 +145,30 @@
     const next = { ...p, ...(patch || {}) };
     if (patch?.today) next.today = { ...p.today, ...patch.today };
     await _writeJSON(PREFS_PATH, next);
+    _fireMutate({ type: 'prefs' });
     return { success: true };
+  }
+
+  // Sync-only. Writes prefs.json as-is from Drive. silent:true (default)
+  // skips the mutate event so we don't loop the pull back into a push.
+  // Uses the local date-rollover sanity check from getPrefs to avoid
+  // resurrecting a stale `today` block from a cross-timezone peer.
+  async function writePrefsRaw(prefs, { silent = true } = {}) {
+    if (!prefs || typeof prefs !== 'object') return { success: false };
+    // Merge into DEFAULT_PREFS so any fields the peer didn't have
+    // (e.g. older version) come back as defaults instead of undefined.
+    const merged = { ...DEFAULT_PREFS, ...prefs };
+    // Rollover: if remote prefs.today is from an older day, drop it.
+    const today = _todayKey();
+    if (!merged.today || merged.today.date !== today) {
+      merged.today = { date: today, focusMin: 0, cyclesCompleted: 0, cardsReviewed: 0 };
+    }
+    await _writeJSON(PREFS_PATH, merged);
+    if (!silent) _fireMutate({ type: 'prefs' });
+    return { success: true };
+  }
+  async function readPrefsRaw() {
+    return _readJSON(PREFS_PATH, null);
   }
 
   // ── Decks ─────────────────────────────────────────────────────
@@ -309,6 +332,7 @@
       const prefs = await getPrefs();
       prefs.today.cardsReviewed = (prefs.today.cardsReviewed || 0) + 1;
       await _writeJSON(PREFS_PATH, prefs);
+      _fireMutate({ type: 'prefs' });
 
       return { success: true, card };
     });
@@ -356,6 +380,7 @@
       prefs.today.cardsReviewed = (prefs.today.cardsReviewed || 0) + e.cardsReviewed;
     }
     await _writeJSON(PREFS_PATH, prefs);
+    _fireMutate({ type: 'prefs' });
     return { success: true };
   }
 
@@ -399,5 +424,6 @@
     getPrefs, setPrefs,
     // Sync-only helpers — used by study-sync.js on Drive push/pull.
     onMutate, writeDeckRaw, readSessionsRaw, writeSessionsRaw,
+    readPrefsRaw, writePrefsRaw,
   };
 })();

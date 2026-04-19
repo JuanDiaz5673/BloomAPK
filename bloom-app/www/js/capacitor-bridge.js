@@ -522,6 +522,15 @@
         window.addEventListener('bloom:decks-changed', handler);
         return () => window.removeEventListener('bloom:decks-changed', handler);
       },
+      // Fired by study-sync after pulling new sessions.json or prefs.json
+      // from Drive. Study hub uses this to re-read getStats() and redraw
+      // the streak, focus-min, cards-reviewed, goal bar, and weekly chart
+      // without waiting for the user to navigate away and back.
+      onStatsChanged: (fn) => {
+        const handler = () => { try { fn(); } catch {} };
+        window.addEventListener('bloom:stats-changed', handler);
+        return () => window.removeEventListener('bloom:stats-changed', handler);
+      },
       onPomodoroStart: listenerRet,
       // Stream sync-status updates as study-sync dispatches them, so
       // the Study view's chip stays in lockstep with the real state

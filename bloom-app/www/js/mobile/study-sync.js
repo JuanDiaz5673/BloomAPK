@@ -20,12 +20,17 @@
 
 (() => {
   const FOLDER_NAME = 'Bloom Study';
+  // User asked for the stats data to live in "another folder inside"
+  // the Bloom Study folder — keeps the Drive browser tidy and means
+  // a user with 50 decks doesn't also see a stats JSON alongside them.
+  const STATS_SUBFOLDER_NAME = 'Stats';
   const FOLDER_MIME = 'application/vnd.google-apps.folder';
   const JSON_MIME = 'application/json';
   const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
   const UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
   const KIND_DECK = 'deck';
   const KIND_SESSIONS = 'sessions';
+  const KIND_PREFS = 'prefs';
 
   const PUSH_DEBOUNCE_MS = 4000;
   const PULL_INTERVAL_MS = 5 * 60 * 1000;
@@ -45,8 +50,15 @@
   async function _loadState() {
     try {
       const raw = await _prefsStore()?.get(STATE_KEY);
-      return raw && typeof raw === 'object' ? raw : { decks: {}, sessions: null };
-    } catch { return { decks: {}, sessions: null }; }
+      const base = raw && typeof raw === 'object' ? raw : {};
+      // Ensure every key exists so the push paths can `state.prefs?.driveFileId`
+      // without undefined errors on migration from pre-prefs-sync state blobs.
+      return {
+        decks: base.decks || {},
+        sessions: base.sessions || null,
+        prefs: base.prefs || null,
+      };
+    } catch { return { decks: {}, sessions: null, prefs: null }; }
   }
   let _state = null;
   let _statePromise = null;
@@ -86,6 +98,40 @@
       return _folderId;
     })().finally(() => { _folderPromise = null; });
     return _folderPromise;
+  }
+
+  // "Bloom Study/Stats" — the subfolder holding prefs.json (user settings
+  // + daily-goal + last-known today counters). Scoped under the parent
+  // Bloom Study folder so a user hunting through Drive has all study
+  // stuff in one place. Created on first push, memoized per session.
+  let _statsFolderId = null;
+  let _statsFolderPromise = null;
+  async function _ensureStatsFolder() {
+    if (_statsFolderId) return _statsFolderId;
+    if (_statsFolderPromise) return _statsFolderPromise;
+    _statsFolderPromise = (async () => {
+      const parentId = await _ensureFolder();
+      const params = new URLSearchParams({
+        q: `name='${_escapeQ(STATS_SUBFOLDER_NAME)}' and mimeType='${FOLDER_MIME}' and '${parentId}' in parents and trashed=false`,
+        fields: 'files(id,name)', spaces: 'drive',
+      });
+      const found = await _api().authedFetch(`${DRIVE_BASE}/files?${params}`);
+      if (found.files && found.files.length) {
+        _statsFolderId = found.files[0].id;
+        return _statsFolderId;
+      }
+      const created = await _api().authedFetch(`${DRIVE_BASE}/files?fields=id`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: STATS_SUBFOLDER_NAME,
+          mimeType: FOLDER_MIME,
+          parents: [parentId],
+        }),
+      });
+      _statsFolderId = created.id;
+      return _statsFolderId;
+    })().finally(() => { _statsFolderPromise = null; });
+    return _statsFolderPromise;
   }
 
   // ── Multipart upload (same shape as google-notes.js) ─────────────
@@ -156,11 +202,47 @@
     _saveStateSoon();
   }
 
+  // Pushes prefs.json (user settings + daily-goal + today counters) to
+  // the Stats subfolder. Last-write-wins — same conflict policy as
+  // sessions. today's counters are included; cross-device reads get
+  // the rollover treatment in study-store's writePrefsRaw so a peer's
+  // stale yesterday-today can't overwrite a new local day.
+  async function _pushPrefs() {
+    const prefs = await _store().readPrefsRaw();
+    if (!prefs) return; // Nothing written yet — nothing to sync.
+    const statsFolderId = await _ensureStatsFolder();
+    const state = await _ensureState();
+    const existing = state.prefs?.driveFileId || null;
+    const appProperties = { bloomStudyKind: KIND_PREFS };
+    const metadata = existing
+      ? { appProperties }
+      : { name: 'prefs.json', mimeType: JSON_MIME, parents: [statsFolderId], appProperties };
+    const url = existing
+      ? `${UPLOAD_BASE}/files/${encodeURIComponent(existing)}?uploadType=multipart&fields=id,modifiedTime`
+      : `${UPLOAD_BASE}/files?uploadType=multipart&fields=id,modifiedTime`;
+    const result = await _uploadJSON({
+      url, method: existing ? 'PATCH' : 'POST',
+      metadata, body: JSON.stringify(prefs, null, 2),
+    });
+    state.prefs = {
+      driveFileId: result.id,
+      lastPushedAt: Date.now(),
+      lastSeenRemoteModified: result.modifiedTime,
+    };
+    _saveStateSoon();
+  }
+
   // ── Pull ─────────────────────────────────────────────────────────
   async function _pullAll() {
     const folderId = await _ensureFolder();
+    const statsFolderId = await _ensureStatsFolder();
+    // One query covers both the root Bloom Study folder AND its Stats
+    // subfolder — Drive's `in parents` supports multi-value matches
+    // via `parent in parents` repeated per-id, but the cleaner path is
+    // an OR clause wrapping both ids. Saves a round-trip vs. two
+    // sequential list calls.
     const params = new URLSearchParams({
-      q: `'${folderId}' in parents and trashed=false`,
+      q: `('${folderId}' in parents or '${statsFolderId}' in parents) and trashed=false`,
       fields: 'files(id,name,modifiedTime,appProperties)',
       pageSize: '200',
     });
@@ -171,6 +253,7 @@
       try {
         if (kind === KIND_DECK) await _maybePullDeck(f);
         else if (kind === KIND_SESSIONS) await _maybePullSessions(f);
+        else if (kind === KIND_PREFS) await _maybePullPrefs(f);
       } catch (err) {
         console.warn('[study-sync] pull failed for', f.name, err);
       }
@@ -238,16 +321,56 @@
       lastSeenRemoteModified: file.modifiedTime,
     };
     _saveStateSoon();
+    // Sessions drive the weekly graph + streak in getStats(), so tell
+    // the Study hub to re-read and redraw.
+    try { window.dispatchEvent(new CustomEvent('bloom:stats-changed')); } catch {}
+  }
+
+  async function _maybePullPrefs(file) {
+    const state = await _ensureState();
+    const localState = state.prefs;
+    if (localState && localState.lastSeenRemoteModified === file.modifiedTime) return;
+    if (_dirtyPrefs) return; // local has unsent changes — don't clobber
+    const localPushedAt = localState?.lastPushedAt || 0;
+    const remoteMs = Date.parse(file.modifiedTime || '') || 0;
+    if (remoteMs <= localPushedAt && localState) {
+      state.prefs = { ...localState, driveFileId: file.id, lastSeenRemoteModified: file.modifiedTime };
+      _saveStateSoon();
+      return;
+    }
+    const content = await _api().authedFetch(
+      `${DRIVE_BASE}/files/${encodeURIComponent(file.id)}?alt=media`
+    );
+    let prefs;
+    try { prefs = typeof content === 'string' ? JSON.parse(content) : content; }
+    catch { return; }
+    if (!prefs || typeof prefs !== 'object') return;
+    // writePrefsRaw handles the local-date rollover so a peer's stale
+    // today block from a different timezone doesn't resurrect old
+    // counters here.
+    await _store().writePrefsRaw(prefs, { silent: true });
+    state.prefs = {
+      driveFileId: file.id,
+      lastPushedAt: Date.now(),
+      lastSeenRemoteModified: file.modifiedTime,
+    };
+    _saveStateSoon();
+    // Tell the Study view to re-render the trackers (today's counters,
+    // daily goal, streak — the goal bar especially, since dailyGoalMin
+    // only lives in prefs).
+    try { window.dispatchEvent(new CustomEvent('bloom:stats-changed')); } catch {}
   }
 
   // ── Dirty queue + debounced flush ────────────────────────────────
   const _dirtyDecks = new Set();
   let _dirtySessions = false;
+  let _dirtyPrefs = false;
   let _pushTimer = null;
 
   function _markDirty(event) {
     if (event?.type === 'deck' && event.deckId) _dirtyDecks.add(event.deckId);
     else if (event?.type === 'sessions') _dirtySessions = true;
+    else if (event?.type === 'prefs') _dirtyPrefs = true;
     else if (event?.type === 'deck-deleted') {
       // V1: leave the Drive copy; just clear local dirty (no push needed).
       _dirtyDecks.delete(event.deckId);
@@ -284,7 +407,10 @@
     if (_syncInFlight) return;
     if (!(await _isAuthed())) return;
     _syncInFlight = true;
-    _setStatus({ state: 'syncing', authed: true, pendingCount: _dirtyDecks.size + (_dirtySessions ? 1 : 0) });
+    _setStatus({
+      state: 'syncing', authed: true,
+      pendingCount: _dirtyDecks.size + (_dirtySessions ? 1 : 0) + (_dirtyPrefs ? 1 : 0),
+    });
     try {
       const deckIds = Array.from(_dirtyDecks);
       _dirtyDecks.clear();
@@ -294,6 +420,10 @@
       if (_dirtySessions) {
         _dirtySessions = false;
         try { await _pushSessions(); } catch (e) { _dirtySessions = true; throw e; }
+      }
+      if (_dirtyPrefs) {
+        _dirtyPrefs = false;
+        try { await _pushPrefs(); } catch (e) { _dirtyPrefs = true; throw e; }
       }
       _setStatus({ state: 'idle', lastSyncAt: Date.now(), pendingCount: 0 });
     } catch (err) {
@@ -318,7 +448,10 @@
     try {
       await _pullAll();
       await flushNow();
-      _setStatus({ state: 'idle', lastSyncAt: Date.now(), pendingCount: _dirtyDecks.size });
+      _setStatus({
+        state: 'idle', lastSyncAt: Date.now(),
+        pendingCount: _dirtyDecks.size + (_dirtySessions ? 1 : 0) + (_dirtyPrefs ? 1 : 0),
+      });
       // Always signal completion. Per-deck _maybePullDeck already
       // fires this on individual writes, but if the pull brought
       // nothing new (or hit an early return path that didn't land a

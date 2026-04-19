@@ -30,6 +30,7 @@ const StudyView = (() => {
   let _unsubDecksChanged = null;
   let _unsubPomodoroStart = null;
   let _unsubSyncStatus = null;
+  let _unsubStatsChanged = null;
   // Cached sync status — re-rendered into the chip on every sub-view nav
   // so the user always sees the latest state without an IPC round-trip.
   let _syncStatus = { state: 'idle', lastSyncAt: null, pendingCount: 0, authed: false };
@@ -289,6 +290,17 @@ const StudyView = (() => {
     _unsubDecksChanged = window.electronAPI.study.onDecksChanged(() => {
       _refreshDecks().catch(() => {});
     });
+    // Stats refresh fires after study-sync pulls new sessions.json or
+    // prefs.json from Drive. Without this the trackers would stay
+    // frozen at the pre-sync values until the user navigated away and
+    // back (or Pomodoro'd into a re-render). Guard against refresh
+    // storms by only re-reading if we're actually on a surface that
+    // shows stats.
+    _unsubStatsChanged = window.electronAPI.study.onStatsChanged?.(() => {
+      if (_subView === SV_HUB || _subView === SV_POMODORO) {
+        _refreshStats().catch(() => {});
+      }
+    });
 
     // Sync status — subscribe FIRST then fetch the current snapshot, so
     // we never miss an in-flight 'syncing' → 'idle' transition. The
@@ -422,6 +434,7 @@ const StudyView = (() => {
       _escListener = null;
     }
     if (_unsubDecksChanged) { try { _unsubDecksChanged(); } catch {} _unsubDecksChanged = null; }
+    if (_unsubStatsChanged) { try { _unsubStatsChanged(); } catch {} _unsubStatsChanged = null; }
     if (_unsubPomodoroStart) { try { _unsubPomodoroStart(); } catch {} _unsubPomodoroStart = null; }
     if (_unsubSyncStatus) { try { _unsubSyncStatus(); } catch {} _unsubSyncStatus = null; }
   }
