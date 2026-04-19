@@ -42,15 +42,18 @@
     _el.className = 'pomo-pill';
     _el.type = 'button';
     _el.setAttribute('aria-label', 'Pomodoro timer — tap to open');
-    // SVG ring uses transparent stroke-dashoffset to animate progress
-    // as the session ticks down. Track circle (bg) stays fully drawn;
-    // progress circle (fg) rotates -90° so the stroke starts at 12 o'clock
-    // and sweeps clockwise — same as the big ring on Pomodoro page.
+    // SVG ring uses stroke-dashoffset to animate progress as time
+    // elapses. The dim-white track (bg) is always fully drawn so you
+    // always see a complete outline of the ring. The colored progress
+    // arc (fg) starts invisible (offset=C) and FILLS IN clockwise as
+    // elapsed time grows — so at a glance the user can tell how much
+    // of the session is already behind them. Rotated -90° so the fill
+    // starts at 12 o'clock and sweeps clockwise.
     _el.innerHTML = `
       <svg class="pomo-pill-ring" viewBox="0 0 ${RING_SIZE} ${RING_SIZE}" aria-hidden="true">
         <circle class="pomo-pill-ring-bg" cx="${RING_SIZE/2}" cy="${RING_SIZE/2}" r="${R}" />
         <circle class="pomo-pill-ring-fg" cx="${RING_SIZE/2}" cy="${RING_SIZE/2}" r="${R}"
-          stroke-dasharray="${C.toFixed(3)}" stroke-dashoffset="0" />
+          stroke-dasharray="${C.toFixed(3)}" stroke-dashoffset="${C.toFixed(3)}" />
       </svg>
       <span class="pomo-pill-time" id="pomo-pill-time">--:--</span>
     `;
@@ -70,11 +73,12 @@
 
   function _paintRing(remainingMs, durationMs) {
     if (!_ringFg) return;
-    // progress: 0 at start, 1 when done. We draw the REMAINING portion
-    // (not elapsed) so the ring visually drains as time runs out —
-    // more intuitive than a filling arc at a glance.
-    const remainingFrac = durationMs > 0 ? Math.max(0, Math.min(1, remainingMs / durationMs)) : 0;
-    const offset = C * (1 - remainingFrac);
+    // We draw the ELAPSED portion (not remaining) so the colored arc
+    // fills in over the dim-white track as the session progresses —
+    // lets the user see at a glance how much time has already passed.
+    // offset=C → arc invisible (0% elapsed); offset=0 → arc fully drawn (100% elapsed).
+    const remainingFrac = durationMs > 0 ? Math.max(0, Math.min(1, remainingMs / durationMs)) : 1;
+    const offset = C * remainingFrac;
     _ringFg.style.strokeDashoffset = offset.toFixed(3);
   }
 

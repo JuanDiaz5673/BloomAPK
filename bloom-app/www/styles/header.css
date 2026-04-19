@@ -138,9 +138,9 @@
    Design: the pill is a miniature echo of the big Pomodoro ring on
    the Study page — same SVG-ring-+-MM:SS pattern, just 18×18 instead
    of 240×240. So the pill feels like a zoomed-out version of that
-   control rather than a disconnected pink dot. The ring drains
-   clockwise as the session ticks down (visually mirroring the big
-   ring's behavior).
+   control rather than a disconnected pink dot. The colored arc FILLS
+   IN clockwise over a dim-white track as the session ticks down, so
+   at a glance you see how much of the session is already behind you.
 
    Color language:
    - .is-focus   → pink/primary accent (matches the big ring in focus)
@@ -151,9 +151,12 @@
 .pomo-pill {
   display: none; /* toggled by .is-visible */
   align-items: center; gap: 8px;
-  height: 32px;
-  padding: 0 12px 0 8px;
-  border-radius: 18px;
+  height: 36px;               /* matches .header-action height exactly */
+  padding: 0 12px 0 9px;
+  /* Match the adjacent .header-action buttons (13px rounded-square)
+     so the pill visually reads as part of the same row of controls
+     rather than a floating capsule. */
+  border-radius: 13px;
   /* Mode-tinted glass — not just plain --glass-bg. The colored tint
      comes from the mode class rules below (is-focus / is-break) so
      the pill reads distinctly from the colorless action buttons next
@@ -227,13 +230,16 @@
   width: 18px; height: 18px;
   flex-shrink: 0;
   overflow: visible;
-  /* Rotate -90° so strokeDashoffset sweeps clockwise from 12 o'clock,
+  /* Rotate -90° so the colored arc fills in clockwise from 12 o'clock,
      matching the big ring on the Pomodoro page. */
   transform: rotate(-90deg);
 }
+/* Dim-white track — always fully drawn as the outline the colored
+   arc fills in against. Bumped alpha a touch vs. the old "barely-there"
+   track since it's now the default visible state at session start. */
 .pomo-pill-ring-bg {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.12);
+  stroke: rgba(255, 255, 255, 0.22);
   stroke-width: 2;
 }
 .pomo-pill-ring-fg {
