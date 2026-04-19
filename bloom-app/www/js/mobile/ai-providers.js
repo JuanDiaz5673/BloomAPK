@@ -161,34 +161,51 @@ Now: ${isoDate} ${hhmm} ${offset}. Append ${offset} to event datetimes. Defaults
   }
 
   function _asClaudeMessages(messages) {
-    return messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => {
-        // Preserve structured content arrays (e.g. [tool_use, text] on
-        // assistant turns, [tool_result, ...] on user turns) — those are
-        // what the tool-loop pushes back in and they must be re-sent as
-        // blocks, not flattened to a string.
-        if (Array.isArray(m.content)) return { role: m.role, content: m.content };
-        return { role: m.role, content: _extractText(m.content) };
-      });
+    // _trimHistory caps at the last MAX_TURNS pairs — see comment above.
+    return _trimHistory(messages).map(m => {
+      // Preserve structured content arrays (e.g. [tool_use, text] on
+      // assistant turns, [tool_result, ...] on user turns) — those are
+      // what the tool-loop pushes back in and they must be re-sent as
+      // blocks, not flattened to a string.
+      if (Array.isArray(m.content)) return { role: m.role, content: m.content };
+      return { role: m.role, content: _extractText(m.content) };
+    });
+  }
+
+  // ── History trimming ────────────────────────────────────────────
+  // Bloom's chat history grows unbounded across a session — every
+  // turn is appended and re-sent on the next request. By turn 10 a
+  // user is paying ~4-5x the necessary tokens just to give the model
+  // context that's mostly irrelevant to "what's tonight at 7pm".
+  //
+  // Cap at the last MAX_TURNS user/assistant pairs (so MAX_TURNS*2
+  // messages). Older turns are dropped. The model loses long-term
+  // recall but keeps the immediate flow that actually matters.
+  // For users on Gemini's free tier this is the difference between
+  // hitting RPM limits every other message and never hitting them.
+  const MAX_TURNS = 8;
+  function _trimHistory(messages) {
+    const filtered = (messages || []).filter(m => m.role === 'user' || m.role === 'assistant');
+    if (filtered.length <= MAX_TURNS * 2) return filtered;
+    const trimmed = filtered.slice(-MAX_TURNS * 2);
+    // Conversations must START with a user turn for Claude/Gemini.
+    // If trimming left an assistant turn at index 0, drop it.
+    while (trimmed.length && trimmed[0].role !== 'user') trimmed.shift();
+    return trimmed;
   }
 
   function _asOpenAIMessages(messages) {
     return [
       { role: 'system', content: _getSystemPrompt() },
-      ...messages
-        .filter(m => m.role === 'user' || m.role === 'assistant')
-        .map(m => ({ role: m.role, content: _extractText(m.content) })),
+      ..._trimHistory(messages).map(m => ({ role: m.role, content: _extractText(m.content) })),
     ];
   }
 
   function _asGeminiContents(messages) {
-    return messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: _extractText(m.content) }],
-      }));
+    return _trimHistory(messages).map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: _extractText(m.content) }],
+    }));
   }
 
   // ── SSE consumer — shared across providers ─────────────────────

@@ -4,6 +4,22 @@
    zero change. Single flip at 768px keeps logic simple.
    ─────────────────────────────────────────────────────────────────── */
 
+/* ─── Global Android polish ────────────────────────────────────────
+   The blue/grey "tap flash" overlay Android WebView paints on every
+   touchable element looks out of place over our glass surfaces and
+   competes with the gradient buttons. Killing it doesn't remove
+   active feedback — components that need a press state already define
+   their own (FAB scale, nav-tab background, etc). Set it on the html
+   root so it cascades to every descendant including dynamically-
+   inserted ones (toasts, tool chips, modals). Outside the @media so
+   tablets / split-screen at any width get the same polish. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
 @media (max-width: 768px) {
   :root {
     /* Less overlap on mobile means less "glass" to peer through — drop
@@ -1282,6 +1298,52 @@
     overflow: hidden;
     word-break: break-word;
     line-height: 1.25;
+  }
+
+  /* ── Recent Notes: 2x2 grid instead of 4-row stack ────────────────
+     Activity-list defaults to flex column (one per row), which makes
+     the Recent Notes card the tallest thing in the dashboard on a
+     phone. activity-list-grid on the same element re-lays out as
+     a 2-column grid — 4 notes fit in two short rows. activity-item
+     pieces (dot + name + time) go vertical inside each cell so the
+     name has the full cell width to wrap to two lines. */
+  .activity-list-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .activity-list-grid .activity-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 10px 12px;
+    min-height: 64px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .activity-list-grid .activity-dot {
+    /* Pin the colored dot top-left as a small accent rather than the
+       desktop's vertically-centered prefix — saves horizontal pixels
+       in the now-narrower cell. */
+    width: 6px; height: 6px;
+    margin-bottom: 2px;
+  }
+  .activity-list-grid .activity-info {
+    width: 100%;
+  }
+  .activity-list-grid .activity-name {
+    font-size: 12px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+  }
+  .activity-list-grid .activity-time {
+    font-size: 10px;
+    opacity: 0.7;
+    margin-top: 2px;
   }
   /* Bump the Recent Flashcards tile to fit 2 lines comfortably and
      keep icon + text vertically centered for any length. */

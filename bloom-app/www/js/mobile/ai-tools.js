@@ -216,22 +216,35 @@
 
   // ── Executors ────────────────────────────────────────────────────
 
+  // Tool-result trimming. Each result is fed back to the model and
+  // counts against input tokens on the next iteration. A 50-event list
+  // with full descriptions is easily 4k+ tokens — bigger than the
+  // entire system prompt + tools combined. Cap aggressively.
+  const MAX_EVENTS = 20;
+  const MAX_NOTES_LIST = 40;
+  const MAX_DECKS_LIST = 40;
+  const MAX_NOTE_CONTENT = 2000;
+  const MAX_EVENT_DESC = 200;
+  function _truncate(s, n) {
+    if (typeof s !== 'string' || s.length <= n) return s;
+    return s.slice(0, n - 1) + '\u2026';
+  }
+
   async function _executeCalendar(name, input) {
     const api = _api();
     switch (name) {
       case 'get_upcoming_events': {
         const days = Math.max(1, Math.min(90, Number(input.days_ahead) || 7));
         const events = await api.google.getUpcomingEvents(days);
-        // Trim down to fields the model actually needs — saves tokens + is
-        // easier for it to skim. id is essential for follow-up updates.
-        return (events || []).slice(0, 50).map(e => ({
+        // Trim cap (20) + drop the description for routine list calls
+        // (the model rarely needs it; it can call get later if it does).
+        return (events || []).slice(0, MAX_EVENTS).map(e => ({
           id: e.id,
           summary: e.summary,
           start: e.start?.dateTime || e.start?.date,
           end: e.end?.dateTime || e.end?.date,
-          location: e.location,
-          description: e.description,
-          calendarId: e.calendarId,
+          location: e.location || undefined,
+          description: e.description ? _truncate(e.description, MAX_EVENT_DESC) : undefined,
         }));
       }
       case 'create_calendar_event': {
@@ -280,10 +293,9 @@
     switch (name) {
       case 'list_notes': {
         const notes = await api.notes.list();
-        return (notes || []).slice(0, 100).map(n => ({
+        return (notes || []).slice(0, MAX_NOTES_LIST).map(n => ({
           id: n.id,
           title: n.title || n.name || '(untitled)',
-          modifiedTime: n.modifiedTime,
         }));
       }
       case 'create_note': {
@@ -299,13 +311,16 @@
         if (!input.note_id) return { error: 'note_id is required' };
         const note = await api.notes.get(input.note_id);
         if (!note) return { error: 'note not found' };
-        // Strip heavy fields from the returned blob — the model only
-        // needs title + content. `doc`/`html` add a lot of tokens.
+        const body = note.markdown || note.content || note.text || '';
         return {
           id: note.id,
           title: note.title,
-          content: note.markdown || note.content || note.text || '',
-          modifiedTime: note.modifiedTime,
+          // Truncate at MAX_NOTE_CONTENT chars (~500 tokens). For the
+          // common case of "summarize my note" / "add a line", that's
+          // plenty of context. Mark truncation explicitly so the model
+          // knows the body is partial.
+          content: _truncate(body, MAX_NOTE_CONTENT),
+          truncated: body.length > MAX_NOTE_CONTENT || undefined,
         };
       }
       case 'update_note': {
@@ -363,7 +378,7 @@
       case 'list_flashcard_decks': {
         const decks = await api.study.listDecks();
         return {
-          decks: (decks || []).map(d => ({
+          decks: (decks || []).slice(0, MAX_DECKS_LIST).map(d => ({
             id: d.id,
             name: d.name,
             card_count: Array.isArray(d.cards) ? d.cards.length : d.cardCount || 0,
