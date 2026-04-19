@@ -1189,28 +1189,106 @@ html {
   .notes-view.is-mobile-editing .notes-list-panel { display: none !important; }
   .notes-view.is-mobile-editing .notes-editor-panel { display: flex !important; }
 
-  /* Back arrow — visible only on mobile, only inside editor */
+  /* ── Mobile notes-editor header rework ────────────────────────────
+     Desktop stacks icon slot (56px emoji + 12px chrome = ~70px tall)
+     ABOVE a separate title row, and on mobile the back button used to
+     land on its own line above that — producing a header that ate half
+     the screen. Rework: a single flex row that inlines everything:
+
+       [back]  [icon? 32px]  [title.............]  [saved] [trash]
+
+     The icon slot auto-hides when there's no icon (min-height:0 from
+     desktop base). When there IS an icon, it shrinks from 56px → 28px
+     so it reads as a title accent rather than a cover image. */
+  .notes-editor-panel .notes-editor-header {
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    padding: 10px 12px !important;
+    min-height: 52px;
+  }
+  /* Back arrow inlined at the start of the header row (was on its own
+     line above). Smaller, lighter-weight — it doesn't need to be a
+     hero control; it's a frequent utility. */
   .notes-mobile-back {
     display: flex !important;
     align-items: center;
     justify-content: center;
     width: 36px;
     height: 36px;
-    border-radius: 12px;
-    background: rgba(var(--accent-primary-rgb), 0.08);
-    border: 1px solid rgba(var(--accent-muted-rgb), 0.12);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     color: var(--text-primary);
     cursor: pointer;
-    margin-right: 8px;
     flex-shrink: 0;
-    transition: background 0.18s ease;
+    transition: background 0.18s ease, transform 0.12s ease;
+    padding: 0;
   }
   .notes-mobile-back:active {
     background: rgba(var(--accent-primary-rgb), 0.18);
+    transform: scale(0.94);
   }
-  .notes-editor-header {
-    flex-wrap: nowrap !important;
+  /* Icon slot: inline it into the row, shrink the big emoji to match
+     the title scale. No more tall hero band. */
+  .notes-editor-panel .nt-header-icon-slot {
+    flex-shrink: 0;
     align-items: center !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+  }
+  .notes-editor-panel .nt-header-icon-slot.has-icon {
+    min-height: 0 !important;
+    margin: 0 !important;
+  }
+  .notes-editor-panel .nt-page-icon {
+    padding: 2px 4px !important;
+  }
+  .notes-editor-panel .nt-page-icon-emoji {
+    font-size: 26px !important;
+    line-height: 1 !important;
+  }
+  /* Title + actions row takes the remaining space. */
+  .notes-editor-panel .nt-header-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 6px !important;
+  }
+  .notes-editor-panel .notes-title-input {
+    /* Desktop base font-size (28px) was already bumped to 22px earlier
+       in this block; override here so the row height stays predictable
+       and title doesn't wrap at the inline icon. */
+    font-size: 18px !important;
+    padding: 4px 0 !important;
+  }
+  /* Actions: shrink save pill + delete to match the slimmer header. */
+  .notes-editor-panel .nt-header-actions { gap: 4px !important; }
+  .notes-editor-panel .notes-save-status {
+    font-size: 10.5px !important;
+    padding: 2px 8px !important;
+  }
+  .notes-editor-panel .notes-delete-btn {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  /* "+ Add icon" pill — desktop reveals this only on header-hover,
+     which never fires on touch. Surface a compact always-visible
+     version when the slot is in can-add state so mobile users have
+     a discoverable way to set an icon. Shrink the label so it fits
+     alongside the back button + title. */
+  .notes-editor-panel .nt-header-icon-slot.can-add .nt-page-icon-add {
+    display: inline-flex !important;
+    opacity: 1 !important;
+    transform: none !important;
+    padding: 3px 8px !important;
+    font-size: 10px !important;
+  }
+  .notes-editor-panel .nt-header-icon-slot.can-add .nt-page-icon-add span {
+    /* Hide the label on phones — the + icon alone is recognizable
+       next to the title, and it buys us ~60px of horizontal room
+       for the title itself. */
+    display: none;
   }
 
   /* Editor toolbar — horizontal scroll instead of wrapping. Hide
