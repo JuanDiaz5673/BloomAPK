@@ -157,14 +157,16 @@
      so the pill visually reads as part of the same row of controls
      rather than a floating capsule. */
   border-radius: 13px;
-  /* Mode-tinted glass — not just plain --glass-bg. The colored tint
-     comes from the mode class rules below (is-focus / is-break) so
-     the pill reads distinctly from the colorless action buttons next
-     to it, without fighting them visually. */
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(calc(var(--glass-blur) + 4px)) saturate(1.3);
-  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 4px)) saturate(1.3);
+  /* Frosted dark glass — same recipe as .glass-card so the pill stays
+     legible on busy wallpapers. The near-transparent 4%-white base we
+     had before vanished against light/colorful backgrounds; this one
+     is a real surface you can read MM:SS on. Mode tints below layer
+     over it via linear-gradient so focus/break still read as pink/amber. */
+  background: var(--glass-card-bg);
+  backdrop-filter: var(--glass-sub-blur);
+  -webkit-backdrop-filter: var(--glass-sub-blur);
   border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 16px var(--glass-shadow);
   color: var(--text-primary);
   font-family: 'Outfit', sans-serif;
   font-size: 13px;
@@ -192,14 +194,19 @@
 }
 .pomo-pill.is-visible { display: inline-flex; }
 .pomo-pill:hover {
-  background: rgba(255, 255, 255, 0.07);
+  /* Layer a faint white wash over the glass base on hover — keeps the
+     frosted-dark legibility floor while still signaling hoverability. */
+  background:
+    linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05)),
+    var(--glass-card-bg);
   border-color: var(--glass-border-hover);
   transform: translateY(-1px);
 }
 .pomo-pill:active { transform: translateY(0) scale(0.97); }
 
-/* Mode tints — swap the border + outer glow by mode so the pill is
-   instantly recognizable at a glance (focus = pink, break = amber). */
+/* Mode tints — layer the accent over the dark glass base so the
+   legibility floor is preserved on busy backgrounds. Focus = pink,
+   break = amber. Border + glow still swap by mode for at-a-glance ID. */
 .pomo-pill.is-focus {
   border-color: rgba(var(--accent-primary-rgb), 0.35);
   color: var(--text-primary);
@@ -207,7 +214,9 @@
 .pomo-pill.is-focus.is-running {
   box-shadow: 0 0 0 1px rgba(var(--accent-primary-rgb), 0.25),
               0 4px 16px rgba(var(--accent-primary-rgb), 0.22);
-  background: rgba(var(--accent-primary-rgb), 0.07);
+  background:
+    linear-gradient(rgba(var(--accent-primary-rgb), 0.14), rgba(var(--accent-primary-rgb), 0.14)),
+    var(--glass-card-bg);
 }
 .pomo-pill.is-break {
   border-color: rgba(253, 154, 108, 0.38);
@@ -215,7 +224,9 @@
 .pomo-pill.is-break.is-running {
   box-shadow: 0 0 0 1px rgba(253, 154, 108, 0.28),
               0 4px 16px rgba(253, 154, 108, 0.25);
-  background: rgba(253, 154, 108, 0.08);
+  background:
+    linear-gradient(rgba(253, 154, 108, 0.16), rgba(253, 154, 108, 0.16)),
+    var(--glass-card-bg);
 }
 
 /* Paused: desaturate the whole pill a notch. The ring stays frozen
