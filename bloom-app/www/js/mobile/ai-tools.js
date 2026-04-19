@@ -54,49 +54,47 @@
   }
 
   // ── Tool schemas (Claude-format; other providers convert from this) ─
+  // Descriptions kept terse — every word is paid for on every request.
+  // The model already knows Markdown, ISO 8601, and what flashcards are;
+  // we don't need to teach it those. Only the app-specific contract
+  // (which tool to use when, what id to pass) earns its tokens here.
   const TOOLS = [
     // ── CALENDAR ──────────────────────────────────────────────────
     {
       name: 'get_upcoming_events',
-      description: 'Get upcoming calendar events for the next N days. Use this before suggesting a meeting time or when the user asks "what do I have today / this week".',
+      description: 'Read upcoming Google Calendar events.',
       input_schema: {
         type: 'object',
         properties: {
-          days_ahead: { type: 'number', description: 'Number of days to look ahead (default: 7)' }
+          days_ahead: { type: 'number', description: 'Days to look ahead (default 7)' }
         }
       }
     },
     {
       name: 'create_calendar_event',
-      description: 'Create a new event on the user\'s primary Google Calendar.',
+      description: 'Create event on primary Google Calendar.',
       input_schema: {
         type: 'object',
         properties: {
-          summary: { type: 'string', description: 'Event title, e.g. "Dentist appointment"' },
-          start_datetime: {
-            type: 'string',
-            description: 'Start datetime in ISO 8601 with timezone offset, e.g. "2026-04-18T10:00:00-04:00". If you don\'t know the user\'s timezone, emit the local-time string without an offset and we will fill in the device timezone (e.g. "2026-04-18T10:00:00").'
-          },
-          end_datetime: {
-            type: 'string',
-            description: 'End datetime in ISO 8601 — same format as start_datetime. If the user didn\'t specify an end, default to 1 hour after start.'
-          },
-          description: { type: 'string', description: 'Event description / notes (optional)' },
-          location: { type: 'string', description: 'Event location (optional)' }
+          summary: { type: 'string' },
+          start_datetime: { type: 'string', description: 'ISO 8601 with tz offset, e.g. 2026-04-19T13:00:00-04:00' },
+          end_datetime: { type: 'string', description: 'ISO 8601 with tz offset' },
+          description: { type: 'string' },
+          location: { type: 'string' }
         },
         required: ['summary', 'start_datetime', 'end_datetime']
       }
     },
     {
       name: 'update_calendar_event',
-      description: 'Update an existing calendar event. Only pass fields the user wants changed.',
+      description: 'Update event by id. Pass only fields to change.',
       input_schema: {
         type: 'object',
         properties: {
-          event_id: { type: 'string', description: 'Event id (from get_upcoming_events).' },
+          event_id: { type: 'string' },
           summary: { type: 'string' },
-          start_datetime: { type: 'string', description: 'ISO 8601; timezone offset preferred (see create_calendar_event).' },
-          end_datetime: { type: 'string', description: 'ISO 8601; timezone offset preferred.' },
+          start_datetime: { type: 'string' },
+          end_datetime: { type: 'string' },
           description: { type: 'string' },
           location: { type: 'string' }
         },
@@ -105,12 +103,10 @@
     },
     {
       name: 'delete_calendar_event',
-      description: 'Delete a calendar event by id.',
+      description: 'Delete event by id.',
       input_schema: {
         type: 'object',
-        properties: {
-          event_id: { type: 'string', description: 'Event id to delete' }
-        },
+        properties: { event_id: { type: 'string' } },
         required: ['event_id']
       }
     },
@@ -118,71 +114,49 @@
     // ── NOTES ─────────────────────────────────────────────────────
     {
       name: 'list_notes',
-      description: 'List the user\'s saved notes (title + id + last-modified). Call this before get_note / update_note when you need an id.',
+      description: 'List notes (id, title, modifiedTime). Call before get_note / update_note.',
       input_schema: { type: 'object', properties: {} }
     },
     {
       name: 'create_note',
-      description: `Create a new note. The \`content\` field is Markdown. The editor renders the following block types — use this syntax exactly:
-
-BLOCKS:
-  • Heading 1:    # Title
-  • Heading 2:    ## Section
-  • Heading 3:    ### Subsection
-  • Paragraph:    (plain text; blank line between paragraphs)
-  • Bullet list:  - item  (one per line)
-  • Numbered:     1. item  (one per line)
-  • Task list:    - [ ] todo   /   - [x] done
-  • Quote:        > quoted text
-  • Code block:   \`\`\`language
-                  code
-                  \`\`\`
-  • Divider:      --- (on its own line)
-
-INLINE: **bold**, *italic*, ~~strike~~, \`inline code\`, [link text](https://url)
-
-Put a blank line between blocks.`,
+      description: 'Create a Markdown note.',
       input_schema: {
         type: 'object',
         properties: {
-          title: { type: 'string', description: 'Note title' },
-          content: { type: 'string', description: 'Note body in Markdown' }
+          title: { type: 'string' },
+          content: { type: 'string', description: 'Markdown body' }
         },
         required: ['title', 'content']
       }
     },
     {
       name: 'get_note',
-      description: 'Fetch the contents of a note by id (returned as Markdown).',
+      description: 'Read a note by id (returns Markdown).',
       input_schema: {
         type: 'object',
-        properties: {
-          note_id: { type: 'string', description: 'Note id (from list_notes).' }
-        },
+        properties: { note_id: { type: 'string' } },
         required: ['note_id']
       }
     },
     {
       name: 'update_note',
-      description: 'Update an existing note. Pass the FULL new content — updates replace the body entirely, they do not merge. Markdown syntax same as create_note.',
+      description: 'Update note. Content REPLACES (not merges) — pass the full new body.',
       input_schema: {
         type: 'object',
         properties: {
-          note_id: { type: 'string', description: 'Note id' },
-          title: { type: 'string', description: 'New title (optional)' },
-          content: { type: 'string', description: 'Full new Markdown body (optional; omit to rename only)' }
+          note_id: { type: 'string' },
+          title: { type: 'string' },
+          content: { type: 'string' }
         },
         required: ['note_id']
       }
     },
     {
       name: 'delete_note',
-      description: 'Delete a note (moves it to Drive trash).',
+      description: 'Delete a note (Drive trash).',
       input_schema: {
         type: 'object',
-        properties: {
-          note_id: { type: 'string', description: 'Note id' }
-        },
+        properties: { note_id: { type: 'string' } },
         required: ['note_id']
       }
     },
@@ -190,26 +164,18 @@ Put a blank line between blocks.`,
     // ── STUDY / FLASHCARDS ────────────────────────────────────────
     {
       name: 'create_flashcards_from_text',
-      description: `Create a new flashcard deck with a batch of cards. Extract self-contained question/answer pairs — front should be a question or term, back should be the answer or definition. Aim for 5–20 cards depending on how much material the user gave you. Don't split one concept across multiple cards; don't combine unrelated concepts.
-
-Good:
-  front: "What is the powerhouse of the cell?"
-  back: "Mitochondria — generates ATP via cellular respiration."
-
-Bad (too vague):
-  front: "Biology" / back: "Study of life."`,
+      description: 'Create a deck with cards. 5–20 self-contained Q/A pairs.',
       input_schema: {
         type: 'object',
         properties: {
-          deck_name: { type: 'string', description: 'Deck name (≤ 120 chars), e.g. "Biology — Cell Division".' },
+          deck_name: { type: 'string' },
           cards: {
             type: 'array',
-            description: 'List of cards to create.',
             items: {
               type: 'object',
               properties: {
-                front: { type: 'string', description: 'Question / prompt side' },
-                back: { type: 'string', description: 'Answer / explanation side' }
+                front: { type: 'string' },
+                back: { type: 'string' }
               },
               required: ['front', 'back']
             }
@@ -220,11 +186,11 @@ Bad (too vague):
     },
     {
       name: 'add_flashcard_to_deck',
-      description: 'Add a single flashcard to an existing deck. Use list_flashcard_decks first if you need the deck id.',
+      description: 'Add one card to existing deck.',
       input_schema: {
         type: 'object',
         properties: {
-          deck_id: { type: 'string', description: 'Deck id (from list_flashcard_decks).' },
+          deck_id: { type: 'string' },
           front: { type: 'string' },
           back: { type: 'string' }
         },
@@ -233,16 +199,16 @@ Bad (too vague):
     },
     {
       name: 'list_flashcard_decks',
-      description: 'List the user\'s flashcard decks with ids, names, and card counts.',
+      description: 'List decks (id, name, counts).',
       input_schema: { type: 'object', properties: {} }
     },
     {
       name: 'start_pomodoro',
-      description: 'Kick off a Pomodoro focus session in the Study tab. Use when the user asks for a focus session or "let\'s do a pomodoro".',
+      description: 'Start a Pomodoro focus session.',
       input_schema: {
         type: 'object',
         properties: {
-          duration_min: { type: 'number', description: 'Focus duration in minutes. Omit to use the user\'s configured default.' }
+          duration_min: { type: 'number', description: 'Minutes (omit for user default)' }
         }
       }
     }

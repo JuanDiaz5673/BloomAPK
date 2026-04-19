@@ -60,46 +60,28 @@
   // months-to-years stale). Building the prompt fresh per-request also
   // lets us include the user's local timezone offset, so create_calendar_event
   // can emit a correct ISO datetime without us guessing.
+  // Compact system prompt. Earlier version was ~280 tokens; this one is
+  // ~70. We pay this on every request, every tool-loop iteration, so
+  // every line cut is real money + real latency. The model already knows
+  // it's an assistant, knows how to be concise, knows ISO 8601. Spell
+  // out only the things it can't infer:
+  //   1. Today's date + tz offset (it has no clock)
+  //   2. The defaults for ambiguous time references
+  //   3. "Use the tools, don't just describe"
   function _getSystemPrompt() {
     const now = new Date();
-    // ISO local date (YYYY-MM-DD) — easier for the model to use as a
-    // building block for ISO datetimes than a free-form English date.
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');
     const isoDate = `${y}-${m}-${d}`;
-    const fullDate = now.toLocaleDateString(undefined, {
-      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
-    });
-    const timeStr = now.toLocaleTimeString(undefined, {
-      hour: 'numeric', minute: '2-digit'
-    });
-    // Local timezone offset (minutes east of UTC) → ±HH:MM
     const tzMin = -now.getTimezoneOffset();
     const sign = tzMin >= 0 ? '+' : '-';
     const absMin = Math.abs(tzMin);
-    const offsetStr = `${sign}${String(Math.floor(absMin / 60)).padStart(2, '0')}:${String(absMin % 60).padStart(2, '0')}`;
-    let tzName = '';
-    try { tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
-
-    return [
-      'You are Bloom, a warm, helpful personal productivity assistant running on the user\'s Android phone.',
-      '',
-      `CURRENT CONTEXT (use this for any time-relative request — "today", "tonight", "tomorrow", "this week", "next Friday", etc):`,
-      `- Right now it is ${fullDate}, ${timeStr}.`,
-      `- ISO date: ${isoDate}`,
-      `- User timezone: ${tzName || 'unknown'} (UTC${offsetStr})`,
-      `- When you build start_datetime / end_datetime for create_calendar_event, append "${offsetStr}" so the ISO timestamp is correct, e.g. "${isoDate}T13:00:00${offsetStr}".`,
-      `- "tonight" means after 17:00 today. "tomorrow morning" defaults to 9:00 tomorrow. "in an hour" = current time + 1 hour. Never ask the user to clarify the date when "today/tonight/tomorrow" is unambiguous — just compute it from the date above.`,
-      `- If the user gives a time but no end time, default the event to 1 hour long.`,
-      '',
-      'TOOLS: You have TOOLS for creating / updating / deleting calendar events, notes, and flashcard decks, and for starting Pomodoro focus sessions. When the user asks you to do any of these things, USE THE TOOLS — don\'t just describe what the user could do. Confirm what you did in a short friendly reply.',
-      '',
-      'Keep answers concise. If a tool call fails, say so honestly and suggest what to try.'
-    ].join('\n');
+    const offset = `${sign}${String(Math.floor(absMin / 60)).padStart(2, '0')}:${String(absMin % 60).padStart(2, '0')}`;
+    const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    return `You are Bloom, a phone productivity assistant. Use your tools (don't just describe). Be concise.
+Now: ${isoDate} ${hhmm} ${offset}. Append ${offset} to event datetimes. Defaults: tonight=17:00, tomorrow morning=09:00, no end_datetime=+1h. Resolve today/tonight/tomorrow yourself, never ask.`;
   }
-  // Back-compat for any external reads — exposes the current prompt.
-  // Most callers should use _getSystemPrompt() so the date is fresh.
   const SYSTEM_PROMPT = _getSystemPrompt();
 
   // ── Store helpers ───────────────────────────────────────────────
@@ -300,7 +282,12 @@
         },
         body: JSON.stringify({
           model: PROVIDERS.claude.model,
-          max_tokens: 4096,
+          // 1024 covers a long structured reply + a couple tool calls;
+          // chat answers are usually under 200 tokens. Saving the unused
+          // budget headroom doesn't directly cost on Claude (you pay
+          // for what you generate) but it caps the worst case if the
+          // model goes off on a tangent + helps with rate-limit math.
+          max_tokens: 1024,
           system: systemPrompt,
           messages: workingMessages,
           tools: tools.length ? tools : undefined,
