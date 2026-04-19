@@ -647,11 +647,16 @@
   }
 
   // ── Ping-validate: cheap call to confirm the key actually works ─
+  // Returns { valid: boolean, error?: string } — consumers (Settings)
+  // expect this object shape so they can render a friendly toast.
+  // Previously returned a bare boolean, which caused valid keys to
+  // toast "validation failed: unknown error" because callers were
+  // reading `.valid` on a primitive and getting undefined.
   async function validateKey(provider) {
     try {
       if (provider === 'claude') {
         const key = await getKey('claude');
-        if (!key) return false;
+        if (!key) return { valid: false, error: 'No key set' };
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -665,25 +670,34 @@
             messages: [{ role: 'user', content: 'hi' }],
           }),
         });
-        return res.ok;
+        if (res.ok) return { valid: true };
+        const txt = await res.text().catch(() => '');
+        return { valid: false, error: `Claude ${res.status}: ${txt.slice(0, 200) || res.statusText}` };
       }
       if (provider === 'gemini') {
         const key = await getKey('gemini');
-        if (!key) return false;
+        if (!key) return { valid: false, error: 'No key set' };
         const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
         const res = await fetch(url);
-        return res.ok;
+        if (res.ok) return { valid: true };
+        const txt = await res.text().catch(() => '');
+        return { valid: false, error: _humanizeGeminiError(res.status, txt) };
       }
       if (provider === 'openrouter') {
         const key = await getKey('openrouter');
-        if (!key) return false;
+        if (!key) return { valid: false, error: 'No key set' };
         const res = await fetch('https://openrouter.ai/api/v1/models', {
           headers: { Authorization: `Bearer ${key}` },
         });
-        return res.ok;
+        if (res.ok) return { valid: true };
+        return { valid: false, error: `OpenRouter ${res.status}: ${res.statusText}` };
       }
-    } catch { /* network flaky — surface as false */ }
-    return false;
+      return { valid: false, error: `Unknown provider: ${provider}` };
+    } catch (err) {
+      // Network flake / CORS / etc — surface so the user knows it isn't
+      // necessarily their key.
+      return { valid: false, error: `Network error: ${err?.message || err}` };
+    }
   }
 
   // ── Greeting generation ────────────────────────────────────────

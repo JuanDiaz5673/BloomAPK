@@ -328,7 +328,7 @@
     },
     claude: {
       setApiKey: async (key) => window._bloomAI?.setKey('claude', key) ?? { success: false },
-      validateKey: async () => window._bloomAI?.validateKey('claude') ?? false,
+      validateKey: async () => window._bloomAI?.validateKey('claude') ?? { valid: false, error: 'AI module not loaded' },
       getApiKeyStatus: async () => ({ hasKey: await (window._bloomAI?.hasKey('claude') ?? false) }),
       getApiKeyPreview: async () => window._bloomAI?.getKeyPreview('claude') ?? '',
       streamChat: (...args) => api.ai.streamChat(...args),
@@ -340,13 +340,13 @@
     },
     gemini: {
       setApiKey: async (key) => window._bloomAI?.setKey('gemini', key) ?? { success: false },
-      validateKey: async () => window._bloomAI?.validateKey('gemini') ?? false,
+      validateKey: async () => window._bloomAI?.validateKey('gemini') ?? { valid: false, error: 'AI module not loaded' },
       getApiKeyStatus: async () => ({ hasKey: await (window._bloomAI?.hasKey('gemini') ?? false) }),
       getApiKeyPreview: async () => window._bloomAI?.getKeyPreview('gemini') ?? '',
     },
     openrouter: {
       setApiKey: async (key) => window._bloomAI?.setKey('openrouter', key) ?? { success: false },
-      validateKey: async () => window._bloomAI?.validateKey('openrouter') ?? false,
+      validateKey: async () => window._bloomAI?.validateKey('openrouter') ?? { valid: false, error: 'AI module not loaded' },
       getApiKeyStatus: async () => ({ hasKey: await (window._bloomAI?.hasKey('openrouter') ?? false) }),
       getApiKeyPreview: async () => window._bloomAI?.getKeyPreview('openrouter') ?? '',
       getModel: async () => window._bloomAI?.getOpenRouterModel() ?? 'qwen/qwen3-coder:free',

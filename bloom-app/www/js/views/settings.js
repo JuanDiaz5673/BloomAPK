@@ -179,7 +179,7 @@ const SettingsView = (() => {
               <a href="#" id="gemini-key-help" style="font-size:10px;color:var(--accent-pink);text-decoration:none;font-weight:300;">Get a free key →</a>
             </div>
             <div class="settings-input-group">
-              <input class="settings-input" id="gemini-api-key" type="password" placeholder="AIza..." style="flex:1;">
+              <input class="settings-input" id="gemini-api-key" type="password" placeholder="Paste Gemini API key" style="flex:1;">
               <button class="btn-sm" id="toggle-gemini-visibility" title="Show/Hide">
                 <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
@@ -771,10 +771,8 @@ const SettingsView = (() => {
       Toast.show('Please enter an API key', 'warning');
       return;
     }
-    if (!key.startsWith('sk-ant-')) {
-      Toast.show('Claude keys start with "sk-ant-" — double-check your key', 'warning');
-      // Still save, but warn
-    }
+    // Skip prefix nag — Anthropic could change formats; let the live
+    // validator below answer "is this key real?" instead.
     const statusEl = document.getElementById('claude-key-status');
     try {
       await window.electronAPI.claude.setApiKey(key);
@@ -809,9 +807,10 @@ const SettingsView = (() => {
       Toast.show('Please enter an API key', 'warning');
       return;
     }
-    if (!key.startsWith('AIza')) {
-      Toast.show('Gemini keys usually start with "AIza" — double-check your key', 'warning');
-    }
+    // Note: don't gate on prefix. Google AI Studio has shipped multiple
+    // key formats over the years (AIza..., AQ...., others). The real
+    // validator below pings the Models endpoint, which is the only
+    // honest answer to "is this key any good".
     const statusEl = document.getElementById('gemini-key-status');
     try {
       await window.electronAPI.gemini.setApiKey(key);
@@ -844,9 +843,7 @@ const SettingsView = (() => {
       Toast.show('Please enter an API key', 'warning');
       return;
     }
-    if (!/^sk-or-/.test(key)) {
-      Toast.show('OpenRouter keys start with "sk-or-v1-" — double-check your key', 'warning');
-    }
+    // Skip prefix nag — let the validator answer.
     const statusEl = document.getElementById('openrouter-key-status');
     try {
       await window.electronAPI.openrouter.setApiKey(key);
