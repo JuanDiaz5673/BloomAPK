@@ -1258,9 +1258,17 @@ html {
   .notes-editor-panel .notes-title-input {
     /* Desktop base font-size (28px) was already bumped to 22px earlier
        in this block; override here so the row height stays predictable
-       and title doesn't wrap at the inline icon. */
+       and title doesn't wrap at the inline icon. Length-based tiers
+       (.is-long / .is-very-long) step the size down for long titles so
+       they stop truncating to "AllDash To..." and actually render. */
     font-size: 18px !important;
     padding: 4px 0 !important;
+  }
+  .notes-editor-panel .notes-title-input.is-long {
+    font-size: 15px !important;
+  }
+  .notes-editor-panel .notes-title-input.is-very-long {
+    font-size: 13px !important;
   }
   /* Actions: shrink save pill + delete to match the slimmer header. */
   .notes-editor-panel .nt-header-actions { gap: 4px !important; }

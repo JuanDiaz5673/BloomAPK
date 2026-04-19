@@ -109,7 +109,10 @@ const NotesView = (() => {
     // Was an inline `onclick=` previously; moved to a real listener so
     // strict CSP (script-src 'self' without 'unsafe-inline') doesn't block it.
     document.getElementById('notes-empty')?.addEventListener('click', createNote);
-    document.getElementById('note-title')?.addEventListener('input', () => scheduleSave());
+    document.getElementById('note-title')?.addEventListener('input', (e) => {
+      _applyTitleSizeClass(e.currentTarget);
+      scheduleSave();
+    });
     document.getElementById('delete-note-btn')?.addEventListener('click', deleteNote);
     document.getElementById('notes-mobile-back')?.addEventListener('click', () => {
       document.querySelector('.notes-view')?.classList.remove('is-mobile-editing');
@@ -854,6 +857,27 @@ const NotesView = (() => {
   // icon is set, we show the emoji big (Notion-style ~56px). When unset,
   // the slot collapses to zero height — a subtle `+ Add icon` button only
   // reveals on header hover (CSS-driven) so the header stays compact.
+  /**
+   * Step the title font-size class based on string length so long note
+   * names ("AllDash Todo List", "Weekly Retrospective Notes — 2026-04")
+   * don't truncate to "AllDash To..." in the mobile header row. Three
+   * size tiers let CSS pick the right scale without needing a full
+   * per-character fit-to-fill pass — which on a phone input redraws on
+   * every keystroke.
+   *
+   * Tier breakpoints tuned for the ~180px title column after subtracting
+   * back button (36) + icon (28) + save pill (~50) + delete (32) + gaps
+   * on a 360px viewport. Desktop ignores the classes since the full
+   * width panel always has room.
+   */
+  function _applyTitleSizeClass(el) {
+    if (!el) return;
+    const len = (el.value || '').length;
+    el.classList.remove('is-long', 'is-very-long');
+    if (len > 26) el.classList.add('is-very-long');
+    else if (len > 16) el.classList.add('is-long');
+  }
+
   function _applyPageIconUI() {
     const slot = document.getElementById('nt-header-icon-slot');
     const emojiBtn = document.getElementById('nt-page-icon');
@@ -1240,7 +1264,11 @@ const NotesView = (() => {
       _updateSidebarRowIcon(noteId, note.icon || null);
 
       const titleInput = document.getElementById('note-title');
-      if (titleInput) { titleInput.value = note.title || ''; titleInput.style.cursor = 'text'; }
+      if (titleInput) {
+        titleInput.value = note.title || '';
+        titleInput.style.cursor = 'text';
+        _applyTitleSizeClass(titleInput);
+      }
 
       const deleteBtn = document.getElementById('delete-note-btn');
       if (deleteBtn) deleteBtn.style.display = 'flex';
@@ -1930,7 +1958,12 @@ const NotesView = (() => {
     selectedNoteFormat = null;
     selectedNoteIcon = null;
     const titleInput = document.getElementById('note-title');
-    if (titleInput) { titleInput.value = ''; titleInput.placeholder = 'Click here to start a new note...'; titleInput.style.cursor = 'pointer'; }
+    if (titleInput) {
+      titleInput.value = '';
+      titleInput.placeholder = 'Click here to start a new note...';
+      titleInput.style.cursor = 'pointer';
+      _applyTitleSizeClass(titleInput);
+    }
     const deleteBtn = document.getElementById('delete-note-btn');
     if (deleteBtn) deleteBtn.style.display = 'none';
     const statusEl = document.getElementById('save-status');
